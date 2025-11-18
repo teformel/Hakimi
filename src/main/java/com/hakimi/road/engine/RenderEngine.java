@@ -3,6 +3,7 @@ package com.hakimi.road.engine;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.screen.Screen;
+import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.util.GameConfig;
@@ -69,7 +70,7 @@ public class RenderEngine {
         // 绘制哈基米（在顶部，左对齐）
         int hakimiX = contentStartX;
         int hakimiY = contentStartY;
-        renderHakimi(tg, hakimiX, hakimiY, false);
+        renderHakimi(tg, hakimiX, hakimiY, false, 0);
         
         // 标题（在哈基米下方，左对齐）
         int titleY = hakimiY + hakimiHeight + 2; // 哈基米高度 + 间距
@@ -87,7 +88,7 @@ public class RenderEngine {
     /**
      * 渲染游戏界面
      */
-    public void renderGame(Player player, List<Obstacle> obstacles, 
+    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles, 
                           int score, int distance, int gameSpeed, int width, int height) throws IOException {
         screen.clear();
         TextGraphics tg = screen.newTextGraphics();
@@ -95,20 +96,28 @@ public class RenderEngine {
         tg.setForegroundColor(TextColor.ANSI.WHITE);
         tg.setBackgroundColor(TextColor.ANSI.BLACK);
         
-        // 计算车道位置（根据屏幕宽度动态计算）
-        int[] roadLanes = GameConfig.calculateRoadLanes(width);
-        
         // 绘制道路
         drawRoad(tg, width, height, distance);
         
         // 绘制障碍物
         for (Obstacle obstacle : obstacles) {
-            drawObstacle(tg, roadLanes[obstacle.getLane()], obstacle.getY(), obstacle.getType());
+            int obstacleRow = Math.max(0, Math.min(height - 2, obstacle.getY()));
+            int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
+            drawObstacle(tg, laneX, obstacleRow, obstacle.getType());
         }
         
         // 绘制玩家
         int playerY = player.calculateY(height);
-        renderHakimi(tg, roadLanes[player.getLane()] - 2, playerY, true);
+        int playerRow = Math.max(0, Math.min(height - 2, playerY));
+        int playerX = GameConfig.calculateLaneX(width, height, player.getLane(), playerRow);
+        renderHakimi(tg, playerX - 4, playerRow - 2, true, distance);
+        
+        // 绘制追逐者
+        if (chaser != null) {
+            int chaserRow = Math.max(1, Math.min(height - 3, chaser.getY()));
+            int chaserX = GameConfig.calculateLaneX(width, height, player.getLane(), chaserRow);
+            renderChaser(tg, chaserX - 3, chaserRow - 3, chaser.getAnimationFrame());
+        }
         
         // 绘制HUD
         tg.putString(2, 1, "分数: " + score);
@@ -118,7 +127,8 @@ public class RenderEngine {
         // 绘制车道指示器
         for (int i = 0; i < GameConfig.ROAD_WIDTH; i++) {
             String indicator = (i == player.getLane()) ? "[★]" : "[ ]";
-            tg.putString(roadLanes[i] - 1, height - 1, indicator);
+            int laneX = GameConfig.calculateLaneX(width, height, i, height - 1);
+            tg.putString(laneX - 1, height - 1, indicator);
         }
         
         screen.refresh();
@@ -165,32 +175,37 @@ public class RenderEngine {
      * 绘制道路
      */
     private void drawRoad(TextGraphics tg, int width, int height, int distance) {
-        int roadLeft = GameConfig.ROAD_MARGIN;
-        int roadRight = width - GameConfig.ROAD_MARGIN;
-        
-        // 绘制道路边界
-        for (int y = 0; y < height; y++) {
-            tg.putString(roadLeft, y, "│");
-            tg.putString(roadRight, y, "│");
+        // 地平线
+        int horizonY = GameConfig.HORIZON_OFFSET;
+        for (int x = 0; x < width; x++) {
+            tg.putString(x, horizonY, "¯");
         }
         
-        // 计算车道位置
-        int[] roadLanes = GameConfig.calculateRoadLanes(width);
-        
-        // 绘制车道分隔线（虚线）
-        for (int y = 0; y < height; y += 2) {
+        for (int y = horizonY + 1; y < height; y++) {
+            int roadWidth = GameConfig.getRoadWidthAtRow(height, y);
+            int roadLeft = GameConfig.getRoadLeftAtRow(width, height, y);
+            int roadRight = Math.min(width - 1, roadLeft + roadWidth);
+            int clampedLeft = Math.max(0, roadLeft);
+            int clampedRight = Math.max(clampedLeft + 1, Math.min(width - 1, roadRight));
+            
+            tg.putString(clampedLeft, y, "/");
+            tg.putString(clampedRight, y, "\\");
+            
+            // 车道分隔线（伪3D透视）
             for (int i = 1; i < GameConfig.ROAD_WIDTH; i++) {
-                // 在车道之间绘制分隔线（使用车道位置的中点）
-                int laneDivider = (roadLanes[i - 1] + roadLanes[i]) / 2;
-                tg.putString(laneDivider, y, "·");
+                int prevLane = GameConfig.calculateLaneX(width, height, i - 1, y);
+                int nextLane = GameConfig.calculateLaneX(width, height, i, y);
+                int laneDivider = (prevLane + nextLane) / 2;
+                if ((y + distance) % 4 < 2 && laneDivider > clampedLeft && laneDivider < clampedRight) {
+                    tg.putString(laneDivider, y, "|");
+                }
             }
-        }
-        
-        // 绘制道路背景（移动效果）
-        for (int y = 0; y < height; y++) {
-            if ((y + distance) % 4 == 0) {
-                tg.putString(roadLeft + 1, y, "─");
-                tg.putString(roadRight - 1, y, "─");
+            
+            // 地面纹理
+            if ((y + distance) % 6 < 3) {
+                for (int fillX = clampedLeft + 1; fillX < clampedRight; fillX += 2) {
+                    tg.putString(fillX, y, ".");
+                }
             }
         }
     }
@@ -229,28 +244,73 @@ public class RenderEngine {
     /**
      * 绘制哈基米
      */
-    private void renderHakimi(TextGraphics tg, int x, int y, boolean isRunning) {
+    private void renderHakimi(TextGraphics tg, int x, int y, boolean isRunning, int animationSeed) {
         String[] hakimi;
         
         if (isRunning) {
-            // 奔跑状态的哈基米（两帧动画交替）
-            // 这里可以根据距离计算动画帧
-            hakimi = new String[]{
-                    "  /\\_/\\  ",
-                    " ( o.o ) ",
-                    " /     \\ "
+            String[][] runningFrames = new String[][]{
+                    {
+                            "   /\\   ",
+                            "  /  \\  ",
+                            " ( •• ) ",
+                            " / || \\ ",
+                            "/  ||  \\",
+                            "   /\\   "
+                    },
+                    {
+                            "   /\\   ",
+                            "  /  \\  ",
+                            " ( •• ) ",
+                            " / || \\ ",
+                            "/  ||  \\",
+                            "  /  \\  "
+                    }
             };
+            int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);
+            hakimi = runningFrames[frameIndex];
         } else {
             // 静止状态的哈基米
             hakimi = new String[]{
-                    "  /\\_/\\  ",
+                    "   /\\   ",
+                    "  /  \\  ",
                     " ( ^.^ ) ",
-                    " /     \\ "
+                    " / || \\ ",
+                    "/  ||  \\",
+                    "   --   "
             };
         }
         
         for (int i = 0; i < hakimi.length; i++) {
-            tg.putString(x, y + i, hakimi[i]);
+            int drawY = y + i;
+            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
+                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - hakimi[i].length(), x)), drawY, hakimi[i]);
+            }
+        }
+    }
+    
+    private void renderChaser(TextGraphics tg, int x, int y, int frame) {
+        String[][] chaserFrames = new String[][]{
+                {
+                        "  ____  ",
+                        " ( >< ) ",
+                        " /||||\\ ",
+                        "/  ||  \\",
+                        "   /\\   "
+                },
+                {
+                        "  ____  ",
+                        " ( >< ) ",
+                        " /||||\\ ",
+                        "/  ||  \\",
+                        "  /  \\  "
+                }
+        };
+        String[] sprite = chaserFrames[Math.abs(frame % chaserFrames.length)];
+        for (int i = 0; i < sprite.length; i++) {
+            int drawY = y + i;
+            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
+                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - sprite[i].length(), x)), drawY, sprite[i]);
+            }
         }
     }
 }

@@ -148,6 +148,7 @@ public class Main {
             case PAUSED:
                 renderEngine.renderGame(
                     gameEngine.getPlayer(),
+                    gameEngine.getChaser(),
                     gameEngine.getObstacles(),
                     gameEngine.getScoreSystem().getScore(),
                     gameEngine.getScoreSystem().getDistance(),

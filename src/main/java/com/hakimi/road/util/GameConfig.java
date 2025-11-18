@@ -8,24 +8,37 @@ public class GameConfig {
     // 道路配置
     public static final int ROAD_WIDTH = 3; // 3条车道
     public static final int PLAYER_START_LANE = 1; // 中间车道
-    public static final int ROAD_MARGIN = 10; // 道路左右边距
+    public static final int ROAD_MARGIN = 10; // 道路左右边距（用于菜单等2D界面）
+    public static final int ROAD_BOTTOM_WIDTH = 56; // 伪3D道路在屏幕底部的宽度
+    public static final int ROAD_TOP_WIDTH = 12;   // 伪3D道路在屏幕顶部的宽度
+    public static final int HORIZON_OFFSET = 3;    // 路面与地平线的间距
     
     /**
-     * 根据屏幕宽度计算车道x坐标
-     * @param screenWidth 屏幕宽度
-     * @return 车道x坐标数组
+     * 计算指定行的道路宽度（用于伪3D效果）
      */
-    public static int[] calculateRoadLanes(int screenWidth) {
-        int roadLeft = ROAD_MARGIN;
-        int roadRight = screenWidth - ROAD_MARGIN;
-        int roadWidth = roadRight - roadLeft;
-        int[] lanes = new int[ROAD_WIDTH];
-        
-        // 计算每条车道的中心位置
-        for (int i = 0; i < ROAD_WIDTH; i++) {
-            lanes[i] = roadLeft + (roadWidth * (i + 1)) / (ROAD_WIDTH + 1);
-        }
-        return lanes;
+    public static int getRoadWidthAtRow(int screenHeight, int row) {
+        float depth = Math.min(1f, Math.max(0f, (float) row / (screenHeight - HORIZON_OFFSET)));
+        return (int) (ROAD_TOP_WIDTH + (ROAD_BOTTOM_WIDTH - ROAD_TOP_WIDTH) * depth);
+    }
+    
+    /**
+     * 计算指定行的道路左边界
+     */
+    public static int getRoadLeftAtRow(int screenWidth, int screenHeight, int row) {
+        int roadWidth = getRoadWidthAtRow(screenHeight, row);
+        int center = screenWidth / 2;
+        return center - roadWidth / 2;
+    }
+    
+    /**
+     * 计算指定行指定车道的中心x坐标
+     */
+    public static int calculateLaneX(int screenWidth, int screenHeight, int laneIndex, int row) {
+        int roadWidth = getRoadWidthAtRow(screenHeight, row);
+        int roadLeft = getRoadLeftAtRow(screenWidth, screenHeight, row);
+        float laneWidth = (float) roadWidth / ROAD_WIDTH;
+        float centerOffset = laneWidth * laneIndex + laneWidth / 2f;
+        return Math.round(roadLeft + centerOffset);
     }
     
     // 游戏速度配置

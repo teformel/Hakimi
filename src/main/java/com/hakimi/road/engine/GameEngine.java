@@ -2,6 +2,7 @@ package com.hakimi.road.engine;
 
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.screen.Screen;
+import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.system.CollisionSystem;
@@ -24,6 +25,7 @@ public class GameEngine {
     private ScoreSystem scoreSystem;
     
     private Player player;
+    private Chaser chaser;
     private List<Obstacle> obstacles;
     private int gameSpeed;
     
@@ -40,6 +42,7 @@ public class GameEngine {
         this.scoreSystem = new ScoreSystem();
         this.player = new Player();
         this.obstacles = new ArrayList<>();
+        this.chaser = new Chaser();
         this.gameSpeed = GameConfig.BASE_GAME_SPEED;
         this.gameState = GameState.MENU;
     }
@@ -82,6 +85,10 @@ public class GameEngine {
         }
         obstacles.removeAll(obstaclesToRemove);
         
+        // 更新追逐者
+        int playerY = player.calculateY(size.getRows());
+        chaser.update(playerY, gameSpeed);
+        
         // 碰撞检测
         if (collisionSystem.checkCollision(player, obstacles, size.getRows())) {
             gameState = GameState.GAME_OVER;
@@ -97,6 +104,8 @@ public class GameEngine {
         obstacles.clear();
         scoreSystem.reset();
         gameSpeed = GameConfig.BASE_GAME_SPEED;
+        TerminalSize size = screen.getTerminalSize();
+        chaser.reset(player.calculateY(size.getRows()));
     }
     
     /**
@@ -108,6 +117,8 @@ public class GameEngine {
         obstacles.clear();
         scoreSystem.reset();
         gameSpeed = GameConfig.BASE_GAME_SPEED;
+        TerminalSize size = screen.getTerminalSize();
+        chaser.reset(player.calculateY(size.getRows()));
     }
     
     /**
@@ -140,6 +151,10 @@ public class GameEngine {
     
     public int getGameSpeed() {
         return gameSpeed;
+    }
+    
+    public Chaser getChaser() {
+        return chaser;
     }
 }
 
