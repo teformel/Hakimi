@@ -28,6 +28,11 @@ public class GameEngine {
     private Chaser chaser;
     private List<Obstacle> obstacles;
     private int gameSpeed;
+    private int hitCount;
+    private int chaserVisibleTimer;
+    private static final int CHASER_VISIBLE_DURATION = 40;
+    private boolean caughtByChaser;
+    private boolean chaserAwakened;
     
     public enum GameState {
         MENU, PLAYING, GAME_OVER, PAUSED
@@ -44,6 +49,10 @@ public class GameEngine {
         this.obstacles = new ArrayList<>();
         this.chaser = new Chaser();
         this.gameSpeed = GameConfig.BASE_GAME_SPEED;
+        this.hitCount = 0;
+        this.chaserVisibleTimer = 0;
+        this.chaserAwakened = false;
+        this.caughtByChaser = false;
         this.gameState = GameState.MENU;
     }
     
@@ -89,9 +98,13 @@ public class GameEngine {
         int playerY = player.calculateY(size.getRows());
         chaser.update(playerY, gameSpeed);
         
+        if (chaserVisibleTimer > 0) {
+            chaserVisibleTimer--;
+        }
+        
         // 碰撞检测
         if (collisionSystem.checkCollision(player, obstacles, size.getRows())) {
-            gameState = GameState.GAME_OVER;
+            handlePlayerHit();
         }
     }
     
@@ -103,6 +116,10 @@ public class GameEngine {
         player = new Player();
         obstacles.clear();
         scoreSystem.reset();
+        hitCount = 0;
+        chaserVisibleTimer = 0;
+        chaserAwakened = false;
+        caughtByChaser = false;
         gameSpeed = GameConfig.BASE_GAME_SPEED;
         TerminalSize size = screen.getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
@@ -116,6 +133,10 @@ public class GameEngine {
         player = new Player();
         obstacles.clear();
         scoreSystem.reset();
+        hitCount = 0;
+        chaserVisibleTimer = 0;
+        chaserAwakened = false;
+        caughtByChaser = false;
         gameSpeed = GameConfig.BASE_GAME_SPEED;
         TerminalSize size = screen.getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
@@ -155,6 +176,24 @@ public class GameEngine {
     
     public Chaser getChaser() {
         return chaser;
+    }
+    
+    public boolean isChaserVisible() {
+        return chaserAwakened && chaserVisibleTimer > 0 && gameState == GameState.PLAYING;
+    }
+    
+    public boolean isCaughtByChaser() {
+        return caughtByChaser;
+    }
+    
+    private void handlePlayerHit() {
+        hitCount++;
+        chaserAwakened = true;
+        chaserVisibleTimer = CHASER_VISIBLE_DURATION;
+        if (hitCount >= 3) {
+            caughtByChaser = true;
+            gameState = GameState.GAME_OVER;
+        }
     }
 }
 

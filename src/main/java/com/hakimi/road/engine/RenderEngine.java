@@ -88,8 +88,9 @@ public class RenderEngine {
     /**
      * 渲染游戏界面
      */
-    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles, 
-                          int score, int distance, int gameSpeed, int width, int height) throws IOException {
+    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles,
+                          boolean showChaser, int score, int distance, int gameSpeed,
+                          int width, int height) throws IOException {
         screen.clear();
         TextGraphics tg = screen.newTextGraphics();
         
@@ -105,19 +106,21 @@ public class RenderEngine {
             int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
             drawObstacle(tg, laneX, obstacleRow, obstacle.getType());
         }
-        
-        // 绘制玩家
+
         int playerY = player.calculateY(height);
         int playerRow = Math.max(0, Math.min(height - 2, playerY));
         int playerX = GameConfig.calculateLaneX(width, height, player.getLane(), playerRow);
-        renderHakimi(tg, playerX - 4, playerRow - 2, true, distance);
-        
+
         // 绘制追逐者
-        if (chaser != null) {
-            int chaserRow = Math.max(1, Math.min(height - 3, chaser.getY()));
+        if (showChaser && chaser != null) {
+            int chaserRow = Math.max(GameConfig.HORIZON_OFFSET + 1,
+                    Math.min(playerRow - 5, height - 4));
             int chaserX = GameConfig.calculateLaneX(width, height, player.getLane(), chaserRow);
             renderChaser(tg, chaserX - 3, chaserRow - 3, chaser.getAnimationFrame());
         }
+
+        // 绘制玩家（在追逐者之后，确保位于前景）
+        renderHakimi(tg, playerX - 4, playerRow - 2, true, distance);
         
         // 绘制HUD
         tg.putString(2, 1, "分数: " + score);
@@ -137,7 +140,8 @@ public class RenderEngine {
     /**
      * 渲染游戏结束界面
      */
-    public void renderGameOver(int score, int distance, int width, int height) throws IOException {
+    public void renderGameOver(int score, int distance, boolean caughtByChaser,
+                               int width, int height) throws IOException {
         screen.clear();
         TextGraphics tg = screen.newTextGraphics();
         
@@ -156,16 +160,30 @@ public class RenderEngine {
         String restart = "按 Enter 重新开始";
         tg.putString(width / 2 - restart.length() / 2, height / 2 + 3, restart);
         
-        // 绘制沮丧的哈基米
-        String[] sadHakimi = {
-                "  /\\_/\\  ",
-                " ( T.T ) ",
-                "  /   \\  ",
-                " 趴下了... "
-        };
-        
-        for (int i = 0; i < sadHakimi.length; i++) {
-            tg.putString(width / 2 - 4, height / 2 - 6 + i, sadHakimi[i]);
+        if (caughtByChaser) {
+            String[] caughtScene = {
+                    "   /\\_/\\     ____  ",
+                    "  ( x x )   ( >< ) ",
+                    "  /  ^  \\   /||||\\ ",
+                    " / |===| \\ /  ||  \\",
+                    "/  |   |  \\\\  ||  /",
+                    "哈基米被怪物抓住了！"
+            };
+            for (int i = 0; i < caughtScene.length; i++) {
+                tg.putString(width / 2 - caughtScene[i].length() / 2, height / 2 - 8 + i, caughtScene[i]);
+            }
+        } else {
+            // 绘制沮丧的哈基米
+            String[] sadHakimi = {
+                    "  /\\_/\\  ",
+                    " ( T.T ) ",
+                    "  /   \\  ",
+                    " 趴下了... "
+            };
+            
+            for (int i = 0; i < sadHakimi.length; i++) {
+                tg.putString(width / 2 - 4, height / 2 - 6 + i, sadHakimi[i]);
+            }
         }
         
         screen.refresh();
@@ -250,20 +268,20 @@ public class RenderEngine {
         if (isRunning) {
             String[][] runningFrames = new String[][]{
                     {
-                            "   /\\   ",
-                            "  /  \\  ",
-                            " ( •• ) ",
-                            " / || \\ ",
-                            "/  ||  \\",
-                            "   /\\   "
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
+                            "   /   \\   "
                     },
                     {
-                            "   /\\   ",
-                            "  /  \\  ",
-                            " ( •• ) ",
-                            " / || \\ ",
-                            "/  ||  \\",
-                            "  /  \\  "
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
+                            "  /     \\  "
                     }
             };
             int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);
@@ -271,12 +289,12 @@ public class RenderEngine {
         } else {
             // 静止状态的哈基米
             hakimi = new String[]{
-                    "   /\\   ",
-                    "  /  \\  ",
-                    " ( ^.^ ) ",
-                    " / || \\ ",
-                    "/  ||  \\",
-                    "   --   "
+                    "   /\\_/\\   ",
+                    "  ( ^ ^ )  ",
+                    "   \\ ^ /   ",
+                    "  /|===|\\  ",
+                    " /_|   |_\\ ",
+                    "   /___\\   "
             };
         }
         
@@ -291,18 +309,20 @@ public class RenderEngine {
     private void renderChaser(TextGraphics tg, int x, int y, int frame) {
         String[][] chaserFrames = new String[][]{
                 {
-                        "  ____  ",
-                        " ( >< ) ",
-                        " /||||\\ ",
-                        "/  ||  \\",
-                        "   /\\   "
+                        "   ____   ",
+                        "  ( >< )  ",
+                        "  /||||\\  ",
+                        " /  ||  \\ ",
+                        "/   ||   \\",
+                        "   /  \\   "
                 },
                 {
-                        "  ____  ",
-                        " ( >< ) ",
-                        " /||||\\ ",
-                        "/  ||  \\",
-                        "  /  \\  "
+                        "   ____   ",
+                        "  ( >< )  ",
+                        "  /||||\\  ",
+                        " /  ||  \\ ",
+                        "/   ||   \\",
+                        "  /    \\  "
                 }
         };
         String[] sprite = chaserFrames[Math.abs(frame % chaserFrames.length)];

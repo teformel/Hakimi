@@ -150,6 +150,7 @@ public class Main {
                     gameEngine.getPlayer(),
                     gameEngine.getChaser(),
                     gameEngine.getObstacles(),
+                    gameEngine.isChaserVisible(),
                     gameEngine.getScoreSystem().getScore(),
                     gameEngine.getScoreSystem().getDistance(),
                     gameEngine.getGameSpeed(),
@@ -169,6 +170,7 @@ public class Main {
                 renderEngine.renderGameOver(
                     gameEngine.getScoreSystem().getScore(),
                     gameEngine.getScoreSystem().getDistance(),
+                    gameEngine.isCaughtByChaser(),
                     width,
                     height
                 );
