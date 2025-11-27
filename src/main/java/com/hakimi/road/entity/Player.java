@@ -11,6 +11,7 @@ public class Player {
     private int y; // 玩家y坐标（从底部向上）
     private PlayerState state; // 玩家状态
     private int stateTimer; // 状态计时器
+    private int verticalOffset; // 垂直偏移量（用于跳跃，正值表示向上）
     
     public enum PlayerState {
         NORMAL,    // 正常状态
@@ -22,6 +23,7 @@ public class Player {
         this.lane = GameConfig.PLAYER_START_LANE;
         this.state = PlayerState.NORMAL;
         this.stateTimer = 0;
+        this.verticalOffset = 0;
     }
     
     /**
@@ -40,6 +42,7 @@ public class Player {
         if (state == PlayerState.NORMAL) {
             state = PlayerState.JUMPING;
             stateTimer = 10; // 跳跃持续10帧
+            verticalOffset = 0; // 重置垂直偏移
         }
     }
     
@@ -59,8 +62,19 @@ public class Player {
     public void update() {
         if (stateTimer > 0) {
             stateTimer--;
+            // 更新垂直偏移量（用于跳跃）
+            if (state == PlayerState.JUMPING) {
+                int jumpProgress = 10 - stateTimer; // 0到10
+                // 抛物线公式：h = maxHeight * 4 * (t/T) * (1 - t/T)
+                // 使用更平滑的抛物线，最大跳跃高度增加到8行，让跳跃效果更明显
+                float normalizedProgress = jumpProgress / 10.0f; // 0.0到1.0
+                verticalOffset = (int) (8.0f * 4.0f * normalizedProgress * (1.0f - normalizedProgress)); // 最大跳跃8行
+            } else {
+                verticalOffset = 0;
+            }
             if (stateTimer == 0) {
                 state = PlayerState.NORMAL;
+                verticalOffset = 0;
             }
         }
     }
@@ -68,21 +82,18 @@ public class Player {
     /**
      * 计算玩家在屏幕上的y坐标（伪3D透视）
      * 在伪3D中，Y坐标越小越靠近地平线（越远），Y坐标越大越靠近屏幕底部（越近）
+     * 跳跃时保持在同一深度（baseY不变），垂直偏移在渲染时应用
      */
     public int calculateY(int screenHeight) {
-        // 基础位置在屏幕底部附近
+        // 基础位置在屏幕底部附近，保持在同一深度
         int baseY = screenHeight - GameConfig.PLAYER_HEIGHT - 1;
         
-        if (state == PlayerState.JUMPING) {
-            // 跳跃时：在伪3D中，向上移动意味着向远处移动（Y减小）
-            // 跳跃高度：从底部向上移动，但保持在可见范围内
-            int jumpProgress = 10 - stateTimer; // 0到10
-            int jumpHeight = (int) (Math.sin(jumpProgress * Math.PI / 10.0) * 8); // 正弦曲线，最大跳跃8行
-            return Math.max(GameConfig.HORIZON_OFFSET + 2, baseY - jumpHeight);
-        } else if (state == PlayerState.SLIDING) {
+        if (state == PlayerState.SLIDING) {
             // 滑铲时：稍微向下（更靠近屏幕底部）
             return Math.min(baseY + 1, screenHeight - 2);
         }
+        
+        // 正常和跳跃状态都返回baseY，垂直偏移在渲染时应用
         return baseY;
     }
     
@@ -139,6 +150,13 @@ public class Player {
     
     public int getStateTimer() {
         return stateTimer;
+    }
+    
+    /**
+     * 获取垂直偏移量（用于渲染）
+     */
+    public int getVerticalOffset() {
+        return verticalOffset;
     }
     
     public void setStateFromString(String stateStr) {

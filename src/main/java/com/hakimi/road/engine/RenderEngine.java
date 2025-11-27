@@ -127,6 +127,12 @@ public class RenderEngine {
 
         int playerY = player.calculateY(height);
         int playerRow = Math.max(0, Math.min(height - 2, playerY));
+        // 跳跃时保持在同一深度（不改变y值），通过垂直偏移显示跳跃高度
+        // 垂直偏移用于在渲染时向上移动玩家，但不改变深度计算
+        int verticalOffset = player.getVerticalOffset();
+        // 保持playerRow不变（保持深度），只在渲染时应用垂直偏移
+        int renderRow = Math.max(0, Math.min(height - 2, playerRow - verticalOffset));
+        // 使用原始playerRow计算x坐标（保持透视正确），但用renderRow渲染（显示跳跃高度）
         int playerX = GameConfig.calculateLaneX(width, height, player.getLane(), playerRow);
 
         // 绘制追逐者
@@ -138,9 +144,10 @@ public class RenderEngine {
         }
 
         // 绘制玩家（在追逐者之后，确保位于前景）
-        // 根据玩家位置计算透视效果
+        // 根据玩家位置计算透视效果（使用原始playerRow计算深度，保持在同一深度）
+        // 跳跃时保持在同一深度，让玩家看起来是垂直向上跳，而不是向地平线移动
         float depthFactor = calculateDepthFactor(height, playerRow);
-        renderHakimi3D(tg, playerX, playerRow, player, true, distance, depthFactor);
+        renderHakimi3D(tg, playerX, renderRow, player, true, distance, depthFactor);
         
         // 绘制HUD（放在屏幕右侧，不占用跑道空间）
         int hudX = width - 20;
@@ -371,13 +378,10 @@ public class RenderEngine {
             };
         }
         
-        // 根据深度因子和跳跃状态调整绘制
+        // 根据深度因子调整绘制
+        // 跳跃时保持正常大小，让玩家看起来是垂直向上跳，而不是向地平线移动
         float scale = depthFactor;
-        if (player.isJumping()) {
-            // 跳跃时稍微缩小（因为向上移动，离地平线更近）
-            float jumpProgress = player.getJumpProgress();
-            scale = depthFactor * (1.0f - jumpProgress * 0.2f); // 跳跃时缩小最多20%
-        }
+        // 移除跳跃时的缩放效果，让跳跃看起来更自然（向上跳而不是向前跳）
         
         // 绘制每一行，根据缩放跳过某些行
         // x 是车道中心位置，对于每一行，将该行的中心对齐到这个位置
