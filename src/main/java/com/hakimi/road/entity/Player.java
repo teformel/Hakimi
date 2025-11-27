@@ -128,5 +128,25 @@ public class Player {
     public boolean isNormal() {
         return state == PlayerState.NORMAL;
     }
+    
+    public void setState(PlayerState newState) {
+        this.state = newState;
+    }
+    
+    public void setStateTimer(int timer) {
+        this.stateTimer = timer;
+    }
+    
+    public int getStateTimer() {
+        return stateTimer;
+    }
+    
+    public void setStateFromString(String stateStr) {
+        try {
+            this.state = PlayerState.valueOf(stateStr);
+        } catch (IllegalArgumentException e) {
+            this.state = PlayerState.NORMAL;
+        }
+    }
 }
 

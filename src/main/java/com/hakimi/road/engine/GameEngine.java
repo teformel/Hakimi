@@ -8,6 +8,7 @@ import com.hakimi.road.entity.Player;
 import com.hakimi.road.system.CollisionSystem;
 import com.hakimi.road.system.ScoreSystem;
 import com.hakimi.road.util.GameConfig;
+import com.hakimi.road.util.SaveManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class GameEngine {
     private boolean chaserAwakened;
     
     public enum GameState {
-        MENU, PLAYING, GAME_OVER, PAUSED
+        MENU, PLAYING, GAME_OVER, PAUSED, SETTINGS, SAVE_MENU, LOAD_MENU
     }
     
     private GameState gameState;
@@ -184,6 +185,129 @@ public class GameEngine {
     
     public boolean isCaughtByChaser() {
         return caughtByChaser;
+    }
+    
+    /**
+     * 进入设置界面
+     */
+    public void enterSettings() {
+        gameState = GameState.SETTINGS;
+    }
+    
+    /**
+     * 返回菜单
+     */
+    public void returnToMenu() {
+        gameState = GameState.MENU;
+    }
+    
+    /**
+     * 设置游戏状态（用于恢复状态）
+     */
+    public void setGameState(GameState state) {
+        this.gameState = state;
+    }
+    
+    /**
+     * 进入存档菜单
+     */
+    public void enterSaveMenu() {
+        gameState = GameState.SAVE_MENU;
+    }
+    
+    /**
+     * 进入读档菜单
+     */
+    public void enterLoadMenu() {
+        gameState = GameState.LOAD_MENU;
+    }
+    
+    /**
+     * 保存游戏
+     */
+    public boolean saveGame(String saveName) {
+        SaveManager.GameSaveData saveData = new SaveManager.GameSaveData();
+        
+        // 保存玩家数据
+        saveData.playerLane = player.getLane();
+        saveData.playerY = player.getY();
+        saveData.playerState = player.getState().name();
+        saveData.playerStateTimer = player.getStateTimer();
+        
+        // 保存追逐者数据
+        saveData.chaserY = chaser.getY();
+        saveData.chaserAnimationTick = chaser.getAnimationTick();
+        
+        // 保存游戏状态
+        saveData.gameSpeed = gameSpeed;
+        saveData.hitCount = hitCount;
+        saveData.chaserVisibleTimer = chaserVisibleTimer;
+        saveData.chaserAwakened = chaserAwakened;
+        saveData.caughtByChaser = caughtByChaser;
+        
+        // 保存分数系统
+        saveData.score = scoreSystem.getScore();
+        saveData.distance = scoreSystem.getDistance();
+        saveData.combo = scoreSystem.getCombo();
+        
+        // 保存障碍物
+        saveData.obstacles = new ArrayList<>();
+        for (Obstacle obstacle : obstacles) {
+            SaveManager.ObstacleData obsData = new SaveManager.ObstacleData();
+            obsData.lane = obstacle.getLane();
+            obsData.y = obstacle.getY();
+            obsData.type = obstacle.getType();
+            saveData.obstacles.add(obsData);
+        }
+        
+        return SaveManager.getInstance().saveGame(saveName, saveData);
+    }
+    
+    /**
+     * 加载游戏
+     */
+    public boolean loadGame(String saveName) {
+        SaveManager.GameSaveData saveData = SaveManager.getInstance().loadGame(saveName);
+        if (saveData == null) {
+            return false;
+        }
+        
+        // 恢复玩家数据
+        player.setLane(saveData.playerLane);
+        player.setY(saveData.playerY);
+        player.setStateFromString(saveData.playerState);
+        player.setStateTimer(saveData.playerStateTimer);
+        
+        // 恢复追逐者数据
+        chaser.setY(saveData.chaserY);
+        chaser.setAnimationTick(saveData.chaserAnimationTick);
+        
+        // 恢复游戏状态
+        gameSpeed = saveData.gameSpeed;
+        hitCount = saveData.hitCount;
+        chaserVisibleTimer = saveData.chaserVisibleTimer;
+        chaserAwakened = saveData.chaserAwakened;
+        caughtByChaser = saveData.caughtByChaser;
+        
+        // 恢复分数系统
+        scoreSystem.setScore(saveData.score);
+        scoreSystem.setDistance(saveData.distance);
+        scoreSystem.setCombo(saveData.combo);
+        
+        // 恢复障碍物
+        obstacles.clear();
+        for (SaveManager.ObstacleData obsData : saveData.obstacles) {
+            obstacles.add(new Obstacle(obsData.lane, obsData.y, obsData.type));
+        }
+        
+        // 恢复游戏状态
+        if (caughtByChaser) {
+            gameState = GameState.GAME_OVER;
+        } else {
+            gameState = GameState.PLAYING;
+        }
+        
+        return true;
     }
     
     private void handlePlayerHit() {

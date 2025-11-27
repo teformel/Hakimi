@@ -5,12 +5,16 @@ import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.swing.SwingTerminalFrame;
+import com.googlecode.lanterna.input.KeyType;
 import com.hakimi.road.engine.GameEngine;
 import com.hakimi.road.engine.RenderEngine;
 import com.hakimi.road.system.InputSystem;
 import com.hakimi.road.util.GameConfig;
+import com.hakimi.road.util.SaveManager;
+import com.hakimi.road.util.SettingsManager;
 
 import java.io.IOException;
+import java.util.List;
 import javax.swing.SwingUtilities;
 
 /**
@@ -22,6 +26,18 @@ public class Main {
     private GameEngine gameEngine;
     private RenderEngine renderEngine;
     private InputSystem inputSystem;
+    
+    // 设置界面状态
+    private int settingsSelectedOption = 0;
+    
+    // 存档菜单状态
+    private int saveMenuSelectedIndex = 0;
+    private String saveInputName = "";
+    private boolean isInputtingSaveName = false;
+    private GameEngine.GameState stateBeforeSaveMenu = null;
+    
+    // 读档菜单状态
+    private int loadMenuSelectedIndex = 0;
     
     public static void main(String[] args) {
         Main game = new Main();
@@ -94,39 +110,64 @@ public class Main {
             return; // 没有输入
         }
         
-        // 检查退出（所有状态都可以退出）
-        if (inputSystem.isExitPressed(key)) {
-            System.exit(0);
-        }
-        
         GameEngine.GameState state = gameEngine.getGameState();
         
         // 根据游戏状态处理输入
         switch (state) {
             case MENU:
-                if (inputSystem.isEnterPressed(key)) {
-                    gameEngine.startGame();
+                // 在主菜单时，ESC退出游戏
+                if (inputSystem.isExitPressed(key)) {
+                    System.exit(0);
+                } else {
+                    handleMenuInput(key);
                 }
                 break;
             case PLAYING:
-                // 检查暂停
-                if (inputSystem.isPausePressed(key)) {
+                // 检查ESC返回菜单
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isPausePressed(key)) {
+                    // 检查暂停
                     gameEngine.togglePause();
+                } else if (isSaveKey(key)) {
+                    // 游戏中按S保存
+                    stateBeforeSaveMenu = GameEngine.GameState.PLAYING;
+                    gameEngine.enterSaveMenu();
+                    saveInputName = "";
+                    isInputtingSaveName = true;
                 } else {
                     // 处理玩家输入（移动、跳跃、滑铲）
                     inputSystem.processInput(gameEngine.getPlayer(), key);
                 }
                 break;
             case PAUSED:
-                // 暂停状态下可以继续游戏
-                if (inputSystem.isPausePressed(key)) {
+                // 暂停状态下可以继续游戏、保存或返回菜单
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isPausePressed(key)) {
                     gameEngine.togglePause();
+                } else if (isSaveKey(key)) {
+                    stateBeforeSaveMenu = GameEngine.GameState.PAUSED;
+                    gameEngine.enterSaveMenu();
+                    saveInputName = "";
+                    isInputtingSaveName = true;
                 }
                 break;
             case GAME_OVER:
-                if (inputSystem.isEnterPressed(key)) {
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isEnterPressed(key)) {
                     gameEngine.startGame();
                 }
+                break;
+            case SETTINGS:
+                handleSettingsInput(key);
+                break;
+            case SAVE_MENU:
+                handleSaveMenuInput(key);
+                break;
+            case LOAD_MENU:
+                handleLoadMenuInput(key);
                 break;
         }
     }
@@ -159,7 +200,7 @@ public class Main {
                 );
                 // 如果暂停，显示暂停提示
                 if (state == GameEngine.GameState.PAUSED) {
-                    String pauseText = "游戏暂停 - 按 P 继续";
+                    String pauseText = "游戏暂停 - 按 P 继续，按 S 保存";
                     int x = width / 2 - pauseText.length() / 2;
                     int y = height / 2;
                     screen.newTextGraphics().putString(x, y, pauseText);
@@ -174,8 +215,233 @@ public class Main {
                     height
                 );
                 break;
+            case SETTINGS:
+                renderEngine.renderSettings(width, height, settingsSelectedOption);
+                break;
+            case SAVE_MENU:
+                renderEngine.renderSaveMenu(width, height, saveMenuSelectedIndex, saveInputName);
+                break;
+            case LOAD_MENU:
+                renderEngine.renderLoadMenu(width, height, loadMenuSelectedIndex);
+                break;
         }
         
         screen.refresh();
+    }
+    
+    /**
+     * 处理菜单输入
+     */
+    private void handleMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        if (inputSystem.isEnterPressed(key)) {
+            gameEngine.startGame();
+        } else if (isSettingsKey(key)) {
+            gameEngine.enterSettings();
+            settingsSelectedOption = 0;
+        } else if (isLoadKey(key)) {
+            gameEngine.enterLoadMenu();
+            loadMenuSelectedIndex = 0;
+        }
+    }
+    
+    /**
+     * 处理设置界面输入
+     */
+    private void handleSettingsInput(com.googlecode.lanterna.input.KeyStroke key) {
+        SettingsManager settings = SettingsManager.getInstance();
+        
+        if (key.getKeyType() == KeyType.ArrowUp) {
+            settingsSelectedOption = Math.max(0, settingsSelectedOption - 1);
+        } else if (key.getKeyType() == KeyType.ArrowDown) {
+            int maxOptions = 6;
+            settingsSelectedOption = Math.min(maxOptions - 1, settingsSelectedOption + 1);
+        } else if (key.getKeyType() == KeyType.ArrowLeft) {
+            // 减少数值
+            switch (settingsSelectedOption) {
+                case 0: // 基础游戏速度
+                    if (settings.getBaseGameSpeed() > 1) {
+                        settings.setBaseGameSpeed(settings.getBaseGameSpeed() - 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 1: // 障碍物生成频率
+                    if (settings.getObstacleSpawnRate() > 1) {
+                        settings.setObstacleSpawnRate(settings.getObstacleSpawnRate() - 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 2: // 速度增加间隔
+                    if (settings.getSpeedIncreaseInterval() > 10) {
+                        settings.setSpeedIncreaseInterval(settings.getSpeedIncreaseInterval() - 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 3: // 游戏循环延迟
+                    if (settings.getGameLoopDelayMs() > 50) {
+                        settings.setGameLoopDelayMs(settings.getGameLoopDelayMs() - 10);
+                        settings.saveSettings();
+                    }
+                    break;
+            }
+        } else if (key.getKeyType() == KeyType.ArrowRight) {
+            // 增加数值
+            switch (settingsSelectedOption) {
+                case 0: // 基础游戏速度
+                    if (settings.getBaseGameSpeed() < 10) {
+                        settings.setBaseGameSpeed(settings.getBaseGameSpeed() + 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 1: // 障碍物生成频率
+                    if (settings.getObstacleSpawnRate() < 50) {
+                        settings.setObstacleSpawnRate(settings.getObstacleSpawnRate() + 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 2: // 速度增加间隔
+                    if (settings.getSpeedIncreaseInterval() < 200) {
+                        settings.setSpeedIncreaseInterval(settings.getSpeedIncreaseInterval() + 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 3: // 游戏循环延迟
+                    if (settings.getGameLoopDelayMs() < 500) {
+                        settings.setGameLoopDelayMs(settings.getGameLoopDelayMs() + 10);
+                        settings.saveSettings();
+                    }
+                    break;
+            }
+        } else if (inputSystem.isEnterPressed(key)) {
+            if (settingsSelectedOption == 4) {
+                // 重置为默认值
+                settings.resetToDefaults();
+            } else if (settingsSelectedOption == 5) {
+                // 返回菜单
+                gameEngine.returnToMenu();
+            }
+        } else if (inputSystem.isExitPressed(key)) {
+            gameEngine.returnToMenu();
+        }
+    }
+    
+    /**
+     * 处理存档菜单输入
+     */
+    private void handleSaveMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        if (isInputtingSaveName) {
+            if (key.getKeyType() == KeyType.Enter) {
+                // 保存游戏
+                if (!saveInputName.trim().isEmpty()) {
+                    boolean success = gameEngine.saveGame(saveInputName.trim());
+                    if (success) {
+                        // 返回到之前的状态
+                        if (stateBeforeSaveMenu != null) {
+                            gameEngine.setGameState(stateBeforeSaveMenu);
+                            stateBeforeSaveMenu = null;
+                        } else {
+                            gameEngine.returnToMenu();
+                        }
+                        saveInputName = "";
+                        isInputtingSaveName = false;
+                    }
+                }
+            } else if (key.getKeyType() == KeyType.Backspace) {
+                // 删除字符
+                if (saveInputName.length() > 0) {
+                    saveInputName = saveInputName.substring(0, saveInputName.length() - 1);
+                }
+            } else if (key.getKeyType() == KeyType.Character && key.getCharacter() != null) {
+                char c = key.getCharacter();
+                if (Character.isLetterOrDigit(c) || c == '_' || c == '-') {
+                    if (saveInputName.length() < 20) {
+                        saveInputName += c;
+                    }
+                }
+            } else if (inputSystem.isExitPressed(key)) {
+                // 返回到之前的状态
+                if (stateBeforeSaveMenu != null) {
+                    gameEngine.setGameState(stateBeforeSaveMenu);
+                    stateBeforeSaveMenu = null;
+                } else {
+                    gameEngine.returnToMenu();
+                }
+                saveInputName = "";
+                isInputtingSaveName = false;
+            }
+        } else {
+            List<String> saves = SaveManager.getInstance().getSaveList();
+            if (key.getKeyType() == KeyType.ArrowUp) {
+                saveMenuSelectedIndex = Math.max(0, saveMenuSelectedIndex - 1);
+            } else if (key.getKeyType() == KeyType.ArrowDown) {
+                saveMenuSelectedIndex = Math.min(saves.size() - 1, saveMenuSelectedIndex + 1);
+            } else if (inputSystem.isEnterPressed(key)) {
+                isInputtingSaveName = true;
+                saveInputName = "";
+            } else if (inputSystem.isExitPressed(key)) {
+                gameEngine.returnToMenu();
+            }
+        }
+    }
+    
+    /**
+     * 处理读档菜单输入
+     */
+    private void handleLoadMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        List<String> saves = SaveManager.getInstance().getSaveList();
+        
+        if (saves.isEmpty()) {
+            if (inputSystem.isExitPressed(key)) {
+                gameEngine.returnToMenu();
+            }
+            return;
+        }
+        
+        if (key.getKeyType() == KeyType.ArrowUp) {
+            loadMenuSelectedIndex = Math.max(0, loadMenuSelectedIndex - 1);
+        } else if (key.getKeyType() == KeyType.ArrowDown) {
+            loadMenuSelectedIndex = Math.min(saves.size() - 1, loadMenuSelectedIndex + 1);
+        } else if (inputSystem.isEnterPressed(key)) {
+            // 加载游戏
+            if (loadMenuSelectedIndex >= 0 && loadMenuSelectedIndex < saves.size()) {
+                String saveName = saves.get(loadMenuSelectedIndex);
+                gameEngine.loadGame(saveName);
+            }
+        } else if (key.getKeyType() == KeyType.Character && 
+                   (key.getCharacter() == 'd' || key.getCharacter() == 'D')) {
+            // 删除存档
+            if (loadMenuSelectedIndex >= 0 && loadMenuSelectedIndex < saves.size()) {
+                String saveName = saves.get(loadMenuSelectedIndex);
+                SaveManager.getInstance().deleteSave(saveName);
+            }
+        } else if (inputSystem.isExitPressed(key)) {
+            gameEngine.returnToMenu();
+        }
+    }
+    
+    /**
+     * 检查是否是设置键（S）
+     */
+    private boolean isSettingsKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return key != null && 
+               key.getKeyType() == KeyType.Character &&
+               key.getCharacter() != null &&
+               (key.getCharacter() == 's' || key.getCharacter() == 'S');
+    }
+    
+    /**
+     * 检查是否是保存键（S）
+     */
+    private boolean isSaveKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return isSettingsKey(key);
+    }
+    
+    /**
+     * 检查是否是加载键（L）
+     */
+    private boolean isLoadKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return key != null && 
+               key.getKeyType() == KeyType.Character &&
+               key.getCharacter() != null &&
+               (key.getCharacter() == 'l' || key.getCharacter() == 'L');
     }
 }

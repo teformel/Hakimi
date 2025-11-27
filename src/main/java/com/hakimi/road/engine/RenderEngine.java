@@ -7,8 +7,12 @@ import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.util.GameConfig;
+import com.hakimi.road.util.SaveManager;
+import com.hakimi.road.util.SettingsManager;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -41,7 +45,9 @@ public class RenderEngine {
                 "- 躲避障碍物，跑得越远分数越高",
                 "- 速度会随距离增加而变快",
                 "",
-                "按 Enter 开始奔跑！"
+                "按 Enter 开始游戏",
+                "按 S 进入设置",
+                "按 L 加载存档"
         };
         
         // 标题
@@ -422,6 +428,156 @@ public class RenderEngine {
                 tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - sprite[i].length(), x)), drawY, sprite[i]);
             }
         }
+    }
+    
+    /**
+     * 渲染设置界面
+     */
+    public void renderSettings(int width, int height, int selectedOption) throws IOException {
+        screen.clear();
+        TextGraphics tg = screen.newTextGraphics();
+        
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
+        tg.setBackgroundColor(TextColor.ANSI.BLACK);
+        
+        SettingsManager settings = SettingsManager.getInstance();
+        
+        String title = "设置";
+        tg.putString(width / 2 - title.length() / 2, 3, title);
+        
+        String[] options = {
+            "基础游戏速度: " + settings.getBaseGameSpeed(),
+            "障碍物生成频率: " + settings.getObstacleSpawnRate(),
+            "速度增加间隔: " + settings.getSpeedIncreaseInterval(),
+            "游戏循环延迟(ms): " + settings.getGameLoopDelayMs(),
+            "重置为默认值",
+            "返回菜单"
+        };
+        
+        int startY = height / 2 - options.length / 2;
+        for (int i = 0; i < options.length; i++) {
+            int x = width / 2 - options[i].length() / 2;
+            int y = startY + i;
+            
+            if (i == selectedOption) {
+                tg.setForegroundColor(TextColor.ANSI.YELLOW);
+                tg.putString(x - 2, y, "> ");
+                tg.putString(x, y, options[i]);
+            } else {
+                tg.setForegroundColor(TextColor.ANSI.WHITE);
+                tg.putString(x, y, options[i]);
+            }
+        }
+        
+        String hint = "使用 ↑↓ 选择，←→ 调整数值，Enter 确认，Esc 返回";
+        tg.setForegroundColor(TextColor.ANSI.CYAN);
+        tg.putString(width / 2 - hint.length() / 2, height - 2, hint);
+        
+        screen.refresh();
+    }
+    
+    /**
+     * 渲染存档菜单
+     */
+    public void renderSaveMenu(int width, int height, int selectedIndex, String inputName) throws IOException {
+        screen.clear();
+        TextGraphics tg = screen.newTextGraphics();
+        
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
+        tg.setBackgroundColor(TextColor.ANSI.BLACK);
+        
+        String title = "保存游戏";
+        tg.putString(width / 2 - title.length() / 2, 3, title);
+        
+        List<String> saves = SaveManager.getInstance().getSaveList();
+        
+        int startY = 6;
+        int maxVisible = height - startY - 5;
+        int displayStart = Math.max(0, selectedIndex - maxVisible / 2);
+        int displayEnd = Math.min(saves.size(), displayStart + maxVisible);
+        
+        // 显示存档列表
+        for (int i = displayStart; i < displayEnd; i++) {
+            int y = startY + (i - displayStart);
+            String saveName = saves.get(i);
+            long timestamp = SaveManager.getInstance().getSaveTimestamp(saveName);
+            String timeStr = timestamp > 0 ? 
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(timestamp)) : "未知时间";
+            
+            String saveText = String.format("%d. %s - %s", i + 1, saveName, timeStr);
+            
+            if (i == selectedIndex) {
+                tg.setForegroundColor(TextColor.ANSI.YELLOW);
+                tg.putString(2, y, "> " + saveText);
+            } else {
+                tg.setForegroundColor(TextColor.ANSI.WHITE);
+                tg.putString(4, y, saveText);
+            }
+        }
+        
+        // 显示输入框
+        String inputLabel = "存档名称: ";
+        tg.setForegroundColor(TextColor.ANSI.CYAN);
+        tg.putString(2, height - 4, inputLabel);
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
+        tg.putString(2 + inputLabel.length(), height - 4, inputName + "_");
+        
+        String hint = "输入存档名称后按 Enter 保存，Esc 返回";
+        tg.setForegroundColor(TextColor.ANSI.CYAN);
+        tg.putString(width / 2 - hint.length() / 2, height - 2, hint);
+        
+        screen.refresh();
+    }
+    
+    /**
+     * 渲染读档菜单
+     */
+    public void renderLoadMenu(int width, int height, int selectedIndex) throws IOException {
+        screen.clear();
+        TextGraphics tg = screen.newTextGraphics();
+        
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
+        tg.setBackgroundColor(TextColor.ANSI.BLACK);
+        
+        String title = "加载游戏";
+        tg.putString(width / 2 - title.length() / 2, 3, title);
+        
+        List<String> saves = SaveManager.getInstance().getSaveList();
+        
+        if (saves.isEmpty()) {
+            String noSaves = "没有找到存档";
+            tg.putString(width / 2 - noSaves.length() / 2, height / 2, noSaves);
+        } else {
+            int startY = 6;
+            int maxVisible = height - startY - 5;
+            int displayStart = Math.max(0, selectedIndex - maxVisible / 2);
+            int displayEnd = Math.min(saves.size(), displayStart + maxVisible);
+            
+            // 显示存档列表
+            for (int i = displayStart; i < displayEnd; i++) {
+                int y = startY + (i - displayStart);
+                String saveName = saves.get(i);
+                long timestamp = SaveManager.getInstance().getSaveTimestamp(saveName);
+                String timeStr = timestamp > 0 ? 
+                    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(timestamp)) : "未知时间";
+                
+                String saveText = String.format("%d. %s - %s", i + 1, saveName, timeStr);
+                
+                if (i == selectedIndex) {
+                    tg.setForegroundColor(TextColor.ANSI.YELLOW);
+                    tg.putString(2, y, "> " + saveText);
+                } else {
+                    tg.setForegroundColor(TextColor.ANSI.WHITE);
+                    tg.putString(4, y, saveText);
+                }
+            }
+        }
+        
+        String hint = "使用 ↑↓ 选择，Enter 加载，D 删除，Esc 返回";
+        tg.setForegroundColor(TextColor.ANSI.CYAN);
+        tg.putString(width / 2 - hint.length() / 2, height - 2, hint);
+        
+        screen.refresh();
     }
 }
 

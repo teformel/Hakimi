@@ -40,5 +40,17 @@ public class Chaser {
     public int getAnimationFrame() {
         return (animationTick / 5) % 2;
     }
+    
+    public void setY(int y) {
+        this.y = y;
+    }
+    
+    public void setAnimationTick(int tick) {
+        this.animationTick = tick;
+    }
+    
+    public int getAnimationTick() {
+        return animationTick;
+    }
 }
 

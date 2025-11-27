@@ -63,5 +63,17 @@ public class ScoreSystem {
     public int getCombo() {
         return combo;
     }
+    
+    public void setScore(int score) {
+        this.score = score;
+    }
+    
+    public void setDistance(int distance) {
+        this.distance = distance;
+    }
+    
+    public void setCombo(int combo) {
+        this.combo = combo;
+    }
 }
 
