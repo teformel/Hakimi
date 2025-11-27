@@ -11,7 +11,7 @@ public class GameConfig {
     public static final int ROAD_MARGIN = 10; // 道路左右边距（用于菜单等2D界面）
     public static final int ROAD_BOTTOM_WIDTH = 56; // 伪3D道路在屏幕底部的宽度
     public static final int ROAD_TOP_WIDTH = 12;   // 伪3D道路在屏幕顶部的宽度
-    public static final int HORIZON_OFFSET = 3;    // 路面与地平线的间距
+    public static final int HORIZON_OFFSET = 1;    // 路面与地平线的间距（从顶部开始，充分利用屏幕空间）
     
     /**
      * 计算指定行的道路宽度（用于伪3D效果）
@@ -63,7 +63,7 @@ public class GameConfig {
     
     // 终端配置
     public static final int TERMINAL_WIDTH = 80; // 终端宽度
-    public static final int TERMINAL_HEIGHT = 30; // 终端高度
+    public static final int TERMINAL_HEIGHT = 40; // 终端高度（增加高度以显示更长的跑道）
     
     // 动画配置
     public static final int ANIMATION_FRAME_INTERVAL = 5; // 动画帧间隔

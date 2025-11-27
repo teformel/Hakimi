@@ -68,10 +68,18 @@ public class RenderEngine {
         // 计算内容块的起始x坐标，使整个块居中
         int contentStartX = width / 2 - maxContentWidth / 2;
         
-        // 计算垂直居中位置
+        // 从顶部开始显示，留出少量边距，确保所有内容都在可见区域内
+        // 不再使用垂直居中，避免在Linux终端中内容超出可见区域
         int hakimiHeight = 3; // 哈基米高度
+        int topMargin = 2; // 顶部边距
+        int contentStartY = topMargin;
+        
+        // 计算总内容高度，如果超出屏幕，则调整起始位置
         int totalContentHeight = hakimiHeight + 2 + 1 + instructions.length; // 哈基米 + 间距(2) + 标题(1) + 说明文字
-        int contentStartY = height / 2 - totalContentHeight / 2;
+        if (contentStartY + totalContentHeight > height) {
+            // 如果内容超出屏幕，从顶部开始，但确保最后一行可见
+            contentStartY = Math.max(0, height - totalContentHeight - 1);
+        }
         
         // 绘制哈基米（在顶部，左对齐）
         int hakimiX = contentStartX;
@@ -85,7 +93,11 @@ public class RenderEngine {
         // 游戏说明（在标题下方，左对齐）
         int instructionStartY = titleY + 2;
         for (int i = 0; i < instructions.length; i++) {
-            tg.putString(contentStartX, instructionStartY + i, instructions[i]);
+            int drawY = instructionStartY + i;
+            // 确保不超出屏幕范围
+            if (drawY >= 0 && drawY < height) {
+                tg.putString(contentStartX, drawY, instructions[i]);
+            }
         }
         
         screen.refresh();
@@ -130,12 +142,13 @@ public class RenderEngine {
         float depthFactor = calculateDepthFactor(height, playerRow);
         renderHakimi3D(tg, playerX, playerRow, player, true, distance, depthFactor);
         
-        // 绘制HUD
-        tg.putString(2, 1, "分数: " + score);
-        tg.putString(2, 2, "距离: " + distance);
-        tg.putString(2, 3, "速度: " + gameSpeed);
+        // 绘制HUD（放在屏幕右侧，不占用跑道空间）
+        int hudX = width - 20;
+        tg.putString(hudX, 1, "分数: " + score);
+        tg.putString(hudX, 2, "距离: " + distance);
+        tg.putString(hudX, 3, "速度: " + gameSpeed);
         
-        // 绘制车道指示器
+        // 绘制车道指示器（放在底部，不占用跑道空间）
         for (int i = 0; i < GameConfig.ROAD_WIDTH; i++) {
             String indicator = (i == player.getLane()) ? "[★]" : "[ ]";
             int laneX = GameConfig.calculateLaneX(width, height, i, height - 1);
@@ -156,18 +169,23 @@ public class RenderEngine {
         tg.setForegroundColor(TextColor.ANSI.WHITE);
         tg.setBackgroundColor(TextColor.ANSI.BLACK);
         
-        String gameOver = "游戏结束!";
-        tg.putString(width / 2 - gameOver.length() / 2, height / 2 - 2, gameOver);
+        // 计算内容总高度，确保所有内容都在可见区域内
+        int sceneHeight = caughtByChaser ? 6 : 4;
+        int textHeight = 4; // 游戏结束文本 + 分数 + 距离 + 重启提示
+        int totalHeight = sceneHeight + textHeight + 2; // 场景 + 文本 + 间距
         
-        String scoreText = "最终分数: " + score;
-        tg.putString(width / 2 - scoreText.length() / 2, height / 2, scoreText);
+        // 从顶部开始显示，留出边距，但如果内容太多则调整位置确保可见
+        int topMargin = 2;
+        int startY = topMargin;
+        if (startY + totalHeight > height) {
+            // 如果内容超出屏幕，调整起始位置确保最后一行可见
+            startY = Math.max(0, height - totalHeight - 1);
+        }
         
-        String distanceText = "奔跑距离: " + distance;
-        tg.putString(width / 2 - distanceText.length() / 2, height / 2 + 1, distanceText);
+        int sceneStartY = startY;
+        int textStartY = sceneStartY + sceneHeight + 2;
         
-        String restart = "按 Enter 重新开始";
-        tg.putString(width / 2 - restart.length() / 2, height / 2 + 3, restart);
-        
+        // 绘制场景
         if (caughtByChaser) {
             String[] caughtScene = {
                     "   /\\_/\\     ____  ",
@@ -178,7 +196,10 @@ public class RenderEngine {
                     "哈基米被怪物抓住了！"
             };
             for (int i = 0; i < caughtScene.length; i++) {
-                tg.putString(width / 2 - caughtScene[i].length() / 2, height / 2 - 8 + i, caughtScene[i]);
+                int drawY = sceneStartY + i;
+                if (drawY >= 0 && drawY < height) {
+                    tg.putString(width / 2 - caughtScene[i].length() / 2, drawY, caughtScene[i]);
+                }
             }
         } else {
             // 绘制沮丧的哈基米
@@ -190,8 +211,36 @@ public class RenderEngine {
             };
             
             for (int i = 0; i < sadHakimi.length; i++) {
-                tg.putString(width / 2 - 4, height / 2 - 6 + i, sadHakimi[i]);
+                int drawY = sceneStartY + i;
+                if (drawY >= 0 && drawY < height) {
+                    tg.putString(width / 2 - 4, drawY, sadHakimi[i]);
+                }
             }
+        }
+        
+        // 绘制文本信息
+        String gameOver = "游戏结束!";
+        int gameOverY = textStartY;
+        if (gameOverY >= 0 && gameOverY < height) {
+            tg.putString(width / 2 - gameOver.length() / 2, gameOverY, gameOver);
+        }
+        
+        String scoreText = "最终分数: " + score;
+        int scoreY = gameOverY + 1;
+        if (scoreY >= 0 && scoreY < height) {
+            tg.putString(width / 2 - scoreText.length() / 2, scoreY, scoreText);
+        }
+        
+        String distanceText = "奔跑距离: " + distance;
+        int distanceY = scoreY + 1;
+        if (distanceY >= 0 && distanceY < height) {
+            tg.putString(width / 2 - distanceText.length() / 2, distanceY, distanceText);
+        }
+        
+        String restart = "按 Enter 重新开始";
+        int restartY = distanceY + 2;
+        if (restartY >= 0 && restartY < height) {
+            tg.putString(width / 2 - restart.length() / 2, restartY, restart);
         }
         
         screen.refresh();
@@ -330,11 +379,8 @@ public class RenderEngine {
             scale = depthFactor * (1.0f - jumpProgress * 0.2f); // 跳跃时缩小最多20%
         }
         
-        // 计算缩放后的位置
-        int offsetX = (int) ((hakimi[0].length() / 2) * (1.0f - scale));
-        int drawX = x - offsetX;
-        
         // 绘制每一行，根据缩放跳过某些行
+        // x 是车道中心位置，对于每一行，将该行的中心对齐到这个位置
         int skipLines = scale < 0.7f ? 1 : 0; // 如果太小，跳过一些行
         int lineIndex = 0;
         for (int i = 0; i < hakimi.length; i++) {
@@ -349,7 +395,9 @@ public class RenderEngine {
                     int start = (line.length() - 5) / 2;
                     line = line.substring(start, start + 5);
                 }
-                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - line.length(), drawX)), drawY, line);
+                // 将每一行的中心对齐到车道中心位置 x
+                int lineDrawX = x - line.length() / 2;
+                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - line.length(), lineDrawX)), drawY, line);
             }
             lineIndex++;
         }

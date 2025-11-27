@@ -69,25 +69,48 @@ public class Main {
      */
     private void setupScreen() throws IOException {
         DefaultTerminalFactory terminalFactory = new DefaultTerminalFactory();
-        // 在 Windows 上强制使用 Swing 终端，避免使用 javaw 和 stty.exe 的问题
-        System.setProperty("java.awt.headless", "false");
         // 设置默认终端大小
         TerminalSize size = new TerminalSize(GameConfig.TERMINAL_WIDTH, GameConfig.TERMINAL_HEIGHT);
         terminalFactory.setInitialTerminalSize(size);
-        // 创建 SwingTerminal
-        SwingTerminalFrame terminal = terminalFactory.createSwingTerminal();
-        // 在 EDT 线程上设置终端可见，确保窗口正确初始化
-        try {
-            SwingUtilities.invokeAndWait(() -> {
-                terminal.setVisible(true);
-            });
-        } catch (Exception e) {
-            throw new IOException("无法初始化 Swing 终端", e);
+        
+        // 检测操作系统，在 Linux/WSL2 环境中使用 ANSI 终端，在 Windows 上使用 Swing 终端
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        boolean isWindows = osName.contains("windows");
+        boolean isLinux = osName.contains("linux") || osName.contains("unix");
+        
+        if (isWindows) {
+            // 在 Windows 上强制使用 Swing 终端，避免使用 javaw 和 stty.exe 的问题
+            System.setProperty("java.awt.headless", "false");
+            try {
+                // 创建 SwingTerminal
+                SwingTerminalFrame terminal = terminalFactory.createSwingTerminal();
+                // 在 EDT 线程上设置终端可见，确保窗口正确初始化
+                SwingUtilities.invokeAndWait(() -> {
+                    terminal.setVisible(true);
+                });
+                screen = new TerminalScreen(terminal);
+            } catch (Exception e) {
+                throw new IOException("无法初始化 Swing 终端", e);
+            }
+        } else {
+            // 在 Linux/WSL2 环境中使用 ANSI 终端（不依赖 X11）
+            screen = terminalFactory.createScreen();
         }
-        screen = new TerminalScreen(terminal);
+        
         screen.setCursorPosition(null);
         screen.startScreen();
         screen.doResizeIfNecessary();
+        
+        // 在Linux/ANSI终端中，确保画面从顶部开始显示
+        // 清空屏幕并移动到顶部
+        screen.clear();
+        // 在Linux环境中，添加额外的清屏操作，确保显示从顶部开始
+        if (isLinux) {
+            // 输出ANSI转义序列，将光标移动到左上角并清屏
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+        }
+        screen.refresh();
     }
     
     /**
