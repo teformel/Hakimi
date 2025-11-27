@@ -120,7 +120,9 @@ public class RenderEngine {
         }
 
         // 绘制玩家（在追逐者之后，确保位于前景）
-        renderHakimi(tg, playerX - 4, playerRow - 2, true, distance);
+        // 根据玩家位置计算透视效果
+        float depthFactor = calculateDepthFactor(height, playerRow);
+        renderHakimi3D(tg, playerX, playerRow, player, true, distance, depthFactor);
         
         // 绘制HUD
         tg.putString(2, 1, "分数: " + score);
@@ -260,7 +262,95 @@ public class RenderEngine {
     }
     
     /**
-     * 绘制哈基米
+     * 计算深度因子（用于伪3D透视缩放）
+     * @param screenHeight 屏幕高度
+     * @param row 当前行
+     * @return 深度因子，1.0表示最近（底部），0.5表示最远（地平线）
+     */
+    private float calculateDepthFactor(int screenHeight, int row) {
+        int horizonY = GameConfig.HORIZON_OFFSET;
+        if (row <= horizonY) {
+            return 0.5f; // 最远
+        }
+        float depth = (float) (row - horizonY) / (screenHeight - horizonY);
+        return 0.5f + depth * 0.5f; // 0.5到1.0之间
+    }
+    
+    /**
+     * 绘制哈基米（伪3D版本，支持透视缩放）
+     */
+    private void renderHakimi3D(TextGraphics tg, int x, int y, Player player, 
+                               boolean isRunning, int animationSeed, float depthFactor) {
+        String[] hakimi;
+        
+        if (isRunning) {
+            String[][] runningFrames = new String[][]{
+                    {
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
+                            "   /   \\   "
+                    },
+                    {
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
+                            "  /     \\  "
+                    }
+            };
+            int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);
+            hakimi = runningFrames[frameIndex];
+        } else {
+            // 静止状态的哈基米
+            hakimi = new String[]{
+                    "   /\\_/\\   ",
+                    "  ( ^ ^ )  ",
+                    "   \\ ^ /   ",
+                    "  /|===|\\  ",
+                    " /_|   |_\\ ",
+                    "   /___\\   "
+            };
+        }
+        
+        // 根据深度因子和跳跃状态调整绘制
+        float scale = depthFactor;
+        if (player.isJumping()) {
+            // 跳跃时稍微缩小（因为向上移动，离地平线更近）
+            float jumpProgress = player.getJumpProgress();
+            scale = depthFactor * (1.0f - jumpProgress * 0.2f); // 跳跃时缩小最多20%
+        }
+        
+        // 计算缩放后的位置
+        int offsetX = (int) ((hakimi[0].length() / 2) * (1.0f - scale));
+        int drawX = x - offsetX;
+        
+        // 绘制每一行，根据缩放跳过某些行
+        int skipLines = scale < 0.7f ? 1 : 0; // 如果太小，跳过一些行
+        int lineIndex = 0;
+        for (int i = 0; i < hakimi.length; i++) {
+            if (skipLines > 0 && i % 2 == 1 && scale < 0.7f) {
+                continue; // 跳过某些行以模拟缩小
+            }
+            int drawY = y + lineIndex;
+            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
+                String line = hakimi[i];
+                // 如果缩放较小，截取中间部分
+                if (scale < 0.8f && line.length() > 5) {
+                    int start = (line.length() - 5) / 2;
+                    line = line.substring(start, start + 5);
+                }
+                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - line.length(), drawX)), drawY, line);
+            }
+            lineIndex++;
+        }
+    }
+    
+    /**
+     * 绘制哈基米（保留原方法用于菜单等非3D场景）
      */
     private void renderHakimi(TextGraphics tg, int x, int y, boolean isRunning, int animationSeed) {
         String[] hakimi;

@@ -163,7 +163,6 @@ public class Main {
                     int x = width / 2 - pauseText.length() / 2;
                     int y = height / 2;
                     screen.newTextGraphics().putString(x, y, pauseText);
-                    screen.refresh();
                 }
                 break;
             case GAME_OVER:
@@ -176,5 +175,7 @@ public class Main {
                 );
                 break;
         }
+        
+        screen.refresh();
     }
 }

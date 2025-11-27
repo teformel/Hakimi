@@ -66,19 +66,34 @@ public class Player {
     }
     
     /**
-     * 计算玩家在屏幕上的y坐标
+     * 计算玩家在屏幕上的y坐标（伪3D透视）
+     * 在伪3D中，Y坐标越小越靠近地平线（越远），Y坐标越大越靠近屏幕底部（越近）
      */
     public int calculateY(int screenHeight) {
+        // 基础位置在屏幕底部附近
         int baseY = screenHeight - GameConfig.PLAYER_HEIGHT - 1;
+        
         if (state == PlayerState.JUMPING) {
-            // 跳跃时向上偏移
-            int jumpOffset = Math.min(stateTimer, 5) * 2;
-            return baseY - jumpOffset;
+            // 跳跃时：在伪3D中，向上移动意味着向远处移动（Y减小）
+            // 跳跃高度：从底部向上移动，但保持在可见范围内
+            int jumpProgress = 10 - stateTimer; // 0到10
+            int jumpHeight = (int) (Math.sin(jumpProgress * Math.PI / 10.0) * 8); // 正弦曲线，最大跳跃8行
+            return Math.max(GameConfig.HORIZON_OFFSET + 2, baseY - jumpHeight);
         } else if (state == PlayerState.SLIDING) {
-            // 滑铲时向下偏移
-            return baseY + 1;
+            // 滑铲时：稍微向下（更靠近屏幕底部）
+            return Math.min(baseY + 1, screenHeight - 2);
         }
         return baseY;
+    }
+    
+    /**
+     * 获取跳跃进度（0.0到1.0），用于计算透视缩放
+     */
+    public float getJumpProgress() {
+        if (state == PlayerState.JUMPING) {
+            return (10.0f - stateTimer) / 10.0f;
+        }
+        return 0.0f;
     }
     
     // Getters and Setters
