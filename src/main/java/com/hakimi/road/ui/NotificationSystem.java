@@ -7,11 +7,16 @@ import com.hakimi.road.system.Achievement;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * 通知系统
  * 负责管理和显示游戏内的通知（如成就解锁）
  */
 public class NotificationSystem {
+    private static final Logger logger = LogManager.getLogger(NotificationSystem.class);
+
     private static class Notification {
         String title;
         String message;
@@ -36,12 +41,14 @@ public class NotificationSystem {
 
     public NotificationSystem() {
         this.notificationQueue = new LinkedList<>();
+        logger.debug("NotificationSystem初始化");
     }
 
     /**
      * 显示成就解锁通知
      */
     public void showAchievementUnlock(Achievement achievement) {
+        logger.info("显示成就解锁通知: {}", achievement.getTitle());
         addNotification(
                 "成就解锁!",
                 achievement.getTitle(),
@@ -55,6 +62,7 @@ public class NotificationSystem {
      */
     public void addNotification(String title, String message, String icon, long duration, TextColor color) {
         notificationQueue.offer(new Notification(title, message, icon, duration, color));
+        logger.debug("添加通知到队列: {}", message);
     }
 
     /**
@@ -64,11 +72,13 @@ public class NotificationSystem {
         if (currentNotification == null && !notificationQueue.isEmpty()) {
             currentNotification = notificationQueue.poll();
             currentNotification.startTime = System.currentTimeMillis();
+            logger.trace("显示通知: {}", currentNotification.message);
         }
 
         if (currentNotification != null) {
             long currentTime = System.currentTimeMillis();
             if (currentTime - currentNotification.startTime > currentNotification.duration) {
+                logger.trace("通知过期: {}", currentNotification.message);
                 currentNotification = null;
             }
         }

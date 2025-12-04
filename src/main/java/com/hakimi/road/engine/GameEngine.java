@@ -68,6 +68,7 @@ public class GameEngine {
         // 初始化通知系统和成就管理器
         this.notificationSystem = new NotificationSystem();
         AchievementManager.getInstance().setNotificationSystem(notificationSystem);
+        logger.info("GameEngine初始化完成");
     }
 
     /**
@@ -154,6 +155,7 @@ public class GameEngine {
      * 开始游戏
      */
     public void startGame() {
+        logger.info("开始新游戏");
         gameState = GameState.PLAYING;
         player = new Player();
         obstacles.clear();
@@ -171,6 +173,7 @@ public class GameEngine {
      * 重置游戏
      */
     public void resetGame() {
+        logger.info("重置游戏");
         gameState = GameState.MENU;
         player = new Player();
         obstacles.clear();
@@ -369,9 +372,11 @@ public class GameEngine {
         // 解锁受伤成就
         AchievementManager.getInstance().unlockAchievement(Achievement.OUCH);
 
+        logger.warn("玩家受击: 次数={}/3", hitCount);
         if (hitCount >= 3) {
             caughtByChaser = true;
             gameState = GameState.GAME_OVER;
+            logger.info("游戏结束: 被追逐者捕获");
         }
     }
 }

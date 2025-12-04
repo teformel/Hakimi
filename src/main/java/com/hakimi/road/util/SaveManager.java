@@ -8,11 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * 存档管理类
  * 负责保存和加载游戏存档
  */
 public class SaveManager {
+    private static final Logger logger = LogManager.getLogger(SaveManager.class);
     private static final String SAVE_DIR = "data/saves";
     private static SaveManager instance;
 
@@ -22,9 +26,11 @@ public class SaveManager {
             Path saveDir = Paths.get(SAVE_DIR);
             if (!Files.exists(saveDir)) {
                 Files.createDirectories(saveDir);
+                logger.info("创建存档目录: {}", SAVE_DIR);
             }
+            logger.debug("SaveManager初始化完成");
         } catch (IOException e) {
-            System.err.println("无法创建存档目录: " + e.getMessage());
+            logger.error("无法创建存档目录: {}", SAVE_DIR, e);
         }
     }
 
@@ -39,6 +45,8 @@ public class SaveManager {
      * 保存游戏状态
      */
     public boolean saveGame(String saveName, GameSaveData saveData) {
+        logger.debug("开始保存游戏: saveName={}, score={}, distance={}",
+                saveName, saveData.score, saveData.distance);
         try {
             Path saveFile = Paths.get(SAVE_DIR, saveName + ".save");
             Properties props = new Properties();
@@ -83,14 +91,16 @@ public class SaveManager {
                 for (int i = 0; i < saveData.unlockedAchievements.size(); i++) {
                     props.setProperty("achievement." + i, saveData.unlockedAchievements.get(i));
                 }
+                logger.debug("保存了{}个成就", saveData.unlockedAchievements.size());
             }
 
             try (OutputStream output = Files.newOutputStream(saveFile)) {
                 props.store(output, "游戏存档 - " + saveName);
             }
+            logger.info("游戏保存成功: {}", saveName);
             return true;
         } catch (IOException e) {
-            System.err.println("保存游戏失败: " + e.getMessage());
+            logger.error("保存游戏失败: {}", saveName, e);
             return false;
         }
     }
@@ -99,9 +109,11 @@ public class SaveManager {
      * 加载游戏状态
      */
     public GameSaveData loadGame(String saveName) {
+        logger.debug("开始加载游戏: {}", saveName);
         try {
             Path saveFile = Paths.get(SAVE_DIR, saveName + ".save");
             if (!Files.exists(saveFile)) {
+                logger.warn("存档文件不存在: {}", saveName);
                 return null;
             }
 
@@ -157,9 +169,11 @@ public class SaveManager {
                 }
             }
 
+            logger.info("游戏加载成功: {}, score={}, distance={}, obstacles={}",
+                    saveName, saveData.score, saveData.distance, obstacleCount);
             return saveData;
         } catch (IOException | NumberFormatException e) {
-            System.err.println("加载游戏失败: " + e.getMessage());
+            logger.error("加载游戏失败: {}", saveName, e);
             return null;
         }
     }
@@ -179,8 +193,9 @@ public class SaveManager {
                             saves.add(fileName.substring(0, fileName.length() - 5)); // 移除 .save 扩展名
                         });
             }
+            logger.debug("获取存档列表: 找到{}个存档", saves.size());
         } catch (IOException e) {
-            System.err.println("获取存档列表失败: " + e.getMessage());
+            logger.error("获取存档列表失败", e);
         }
         return saves;
     }
@@ -189,15 +204,18 @@ public class SaveManager {
      * 删除存档
      */
     public boolean deleteSave(String saveName) {
+        logger.debug("尝试删除存档: {}", saveName);
         try {
             Path saveFile = Paths.get(SAVE_DIR, saveName + ".save");
             if (Files.exists(saveFile)) {
                 Files.delete(saveFile);
+                logger.info("存档删除成功: {}", saveName);
                 return true;
             }
+            logger.warn("存档不存在，无法删除: {}", saveName);
             return false;
         } catch (IOException e) {
-            System.err.println("删除存档失败: " + e.getMessage());
+            logger.error("删除存档失败: {}", saveName, e);
             return false;
         }
     }
