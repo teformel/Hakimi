@@ -26,19 +26,19 @@ public class Main {
     private GameEngine gameEngine;
     private RenderEngine renderEngine;
     private InputSystem inputSystem;
-    
+
     // 设置界面状态
     private int settingsSelectedOption = 0;
-    
+
     // 存档菜单状态
     private int saveMenuSelectedIndex = 0;
     private String saveInputName = "";
     private boolean isInputtingSaveName = false;
     private GameEngine.GameState stateBeforeSaveMenu = null;
-    
+
     // 读档菜单状态
     private int loadMenuSelectedIndex = 0;
-    
+
     public static void main(String[] args) {
         Main game = new Main();
         try {
@@ -47,14 +47,14 @@ public class Main {
             e.printStackTrace();
         }
     }
-    
+
     /**
      * 运行游戏主循环
      */
     public void run() throws IOException, InterruptedException {
         setupScreen();
         initializeGame();
-        
+
         // 主游戏循环
         while (true) {
             handleInput();
@@ -63,7 +63,7 @@ public class Main {
             Thread.sleep(GameConfig.GAME_LOOP_DELAY_MS);
         }
     }
-    
+
     /**
      * 初始化屏幕
      */
@@ -72,12 +72,12 @@ public class Main {
         // 设置默认终端大小
         TerminalSize size = new TerminalSize(GameConfig.TERMINAL_WIDTH, GameConfig.TERMINAL_HEIGHT);
         terminalFactory.setInitialTerminalSize(size);
-        
+
         // 检测操作系统，在 Linux/WSL2 环境中使用 ANSI 终端，在 Windows 上使用 Swing 终端
         String osName = System.getProperty("os.name", "").toLowerCase();
         boolean isWindows = osName.contains("windows");
         boolean isLinux = osName.contains("linux") || osName.contains("unix");
-        
+
         if (isWindows) {
             // 在 Windows 上强制使用 Swing 终端，避免使用 javaw 和 stty.exe 的问题
             System.setProperty("java.awt.headless", "false");
@@ -96,11 +96,11 @@ public class Main {
             // 在 Linux/WSL2 环境中使用 ANSI 终端（不依赖 X11）
             screen = terminalFactory.createScreen();
         }
-        
+
         screen.setCursorPosition(null);
         screen.startScreen();
         screen.doResizeIfNecessary();
-        
+
         // 在Linux/ANSI终端中，确保画面从顶部开始显示
         // 清空屏幕并移动到顶部
         screen.clear();
@@ -112,29 +112,30 @@ public class Main {
         }
         screen.refresh();
     }
-    
+
     /**
      * 初始化游戏组件
      */
     private void initializeGame() {
         gameEngine = new GameEngine(screen);
         renderEngine = new RenderEngine(screen);
+        renderEngine.setNotificationSystem(gameEngine.getNotificationSystem());
         inputSystem = new InputSystem(screen);
     }
-    
+
     /**
      * 处理输入
      */
     private void handleInput() throws IOException {
         // 只轮询一次输入
         com.googlecode.lanterna.input.KeyStroke key = inputSystem.pollInput();
-        
+
         if (key == null) {
             return; // 没有输入
         }
-        
+
         GameEngine.GameState state = gameEngine.getGameState();
-        
+
         // 根据游戏状态处理输入
         switch (state) {
             case MENU:
@@ -194,7 +195,7 @@ public class Main {
                 break;
         }
     }
-    
+
     /**
      * 渲染游戏画面
      */
@@ -203,7 +204,7 @@ public class Main {
         TerminalSize size = screen.getTerminalSize();
         int width = size.getColumns();
         int height = size.getRows();
-        
+
         switch (state) {
             case MENU:
                 renderEngine.renderMenu(width, height);
@@ -211,16 +212,15 @@ public class Main {
             case PLAYING:
             case PAUSED:
                 renderEngine.renderGame(
-                    gameEngine.getPlayer(),
-                    gameEngine.getChaser(),
-                    gameEngine.getObstacles(),
-                    gameEngine.isChaserVisible(),
-                    gameEngine.getScoreSystem().getScore(),
-                    gameEngine.getScoreSystem().getDistance(),
-                    gameEngine.getGameSpeed(),
-                    width,
-                    height
-                );
+                        gameEngine.getPlayer(),
+                        gameEngine.getChaser(),
+                        gameEngine.getObstacles(),
+                        gameEngine.isChaserVisible(),
+                        gameEngine.getScoreSystem().getScore(),
+                        gameEngine.getScoreSystem().getDistance(),
+                        gameEngine.getGameSpeed(),
+                        width,
+                        height);
                 // 如果暂停，显示暂停提示
                 if (state == GameEngine.GameState.PAUSED) {
                     String pauseText = "游戏暂停 - 按 P 继续，按 S 保存";
@@ -231,12 +231,11 @@ public class Main {
                 break;
             case GAME_OVER:
                 renderEngine.renderGameOver(
-                    gameEngine.getScoreSystem().getScore(),
-                    gameEngine.getScoreSystem().getDistance(),
-                    gameEngine.isCaughtByChaser(),
-                    width,
-                    height
-                );
+                        gameEngine.getScoreSystem().getScore(),
+                        gameEngine.getScoreSystem().getDistance(),
+                        gameEngine.isCaughtByChaser(),
+                        width,
+                        height);
                 break;
             case SETTINGS:
                 renderEngine.renderSettings(width, height, settingsSelectedOption);
@@ -248,10 +247,10 @@ public class Main {
                 renderEngine.renderLoadMenu(width, height, loadMenuSelectedIndex);
                 break;
         }
-        
+
         screen.refresh();
     }
-    
+
     /**
      * 处理菜单输入
      */
@@ -266,13 +265,13 @@ public class Main {
             loadMenuSelectedIndex = 0;
         }
     }
-    
+
     /**
      * 处理设置界面输入
      */
     private void handleSettingsInput(com.googlecode.lanterna.input.KeyStroke key) {
         SettingsManager settings = SettingsManager.getInstance();
-        
+
         if (key.getKeyType() == KeyType.ArrowUp) {
             settingsSelectedOption = Math.max(0, settingsSelectedOption - 1);
         } else if (key.getKeyType() == KeyType.ArrowDown) {
@@ -346,7 +345,7 @@ public class Main {
             gameEngine.returnToMenu();
         }
     }
-    
+
     /**
      * 处理存档菜单输入
      */
@@ -405,20 +404,20 @@ public class Main {
             }
         }
     }
-    
+
     /**
      * 处理读档菜单输入
      */
     private void handleLoadMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
         List<String> saves = SaveManager.getInstance().getSaveList();
-        
+
         if (saves.isEmpty()) {
             if (inputSystem.isExitPressed(key)) {
                 gameEngine.returnToMenu();
             }
             return;
         }
-        
+
         if (key.getKeyType() == KeyType.ArrowUp) {
             loadMenuSelectedIndex = Math.max(0, loadMenuSelectedIndex - 1);
         } else if (key.getKeyType() == KeyType.ArrowDown) {
@@ -429,8 +428,8 @@ public class Main {
                 String saveName = saves.get(loadMenuSelectedIndex);
                 gameEngine.loadGame(saveName);
             }
-        } else if (key.getKeyType() == KeyType.Character && 
-                   (key.getCharacter() == 'd' || key.getCharacter() == 'D')) {
+        } else if (key.getKeyType() == KeyType.Character &&
+                (key.getCharacter() == 'd' || key.getCharacter() == 'D')) {
             // 删除存档
             if (loadMenuSelectedIndex >= 0 && loadMenuSelectedIndex < saves.size()) {
                 String saveName = saves.get(loadMenuSelectedIndex);
@@ -440,31 +439,31 @@ public class Main {
             gameEngine.returnToMenu();
         }
     }
-    
+
     /**
      * 检查是否是设置键（S）
      */
     private boolean isSettingsKey(com.googlecode.lanterna.input.KeyStroke key) {
-        return key != null && 
-               key.getKeyType() == KeyType.Character &&
-               key.getCharacter() != null &&
-               (key.getCharacter() == 's' || key.getCharacter() == 'S');
+        return key != null &&
+                key.getKeyType() == KeyType.Character &&
+                key.getCharacter() != null &&
+                (key.getCharacter() == 's' || key.getCharacter() == 'S');
     }
-    
+
     /**
      * 检查是否是保存键（S）
      */
     private boolean isSaveKey(com.googlecode.lanterna.input.KeyStroke key) {
         return isSettingsKey(key);
     }
-    
+
     /**
      * 检查是否是加载键（L）
      */
     private boolean isLoadKey(com.googlecode.lanterna.input.KeyStroke key) {
-        return key != null && 
-               key.getKeyType() == KeyType.Character &&
-               key.getCharacter() != null &&
-               (key.getCharacter() == 'l' || key.getCharacter() == 'L');
+        return key != null &&
+                key.getKeyType() == KeyType.Character &&
+                key.getCharacter() != null &&
+                (key.getCharacter() == 'l' || key.getCharacter() == 'L');
     }
 }

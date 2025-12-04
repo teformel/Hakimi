@@ -5,8 +5,11 @@ import com.googlecode.lanterna.screen.Screen;
 import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
+import com.hakimi.road.system.Achievement;
+import com.hakimi.road.system.AchievementManager;
 import com.hakimi.road.system.CollisionSystem;
 import com.hakimi.road.system.ScoreSystem;
+import com.hakimi.road.ui.NotificationSystem;
 import com.hakimi.road.util.GameConfig;
 import com.hakimi.road.util.SaveManager;
 
@@ -24,7 +27,7 @@ public class GameEngine {
     private Random random;
     private CollisionSystem collisionSystem;
     private ScoreSystem scoreSystem;
-    
+
     private Player player;
     private Chaser chaser;
     private List<Obstacle> obstacles;
@@ -34,13 +37,15 @@ public class GameEngine {
     private static final int CHASER_VISIBLE_DURATION = 40;
     private boolean caughtByChaser;
     private boolean chaserAwakened;
-    
+
     public enum GameState {
         MENU, PLAYING, GAME_OVER, PAUSED, SETTINGS, SAVE_MENU, LOAD_MENU
     }
-    
+
     private GameState gameState;
-    
+
+    private NotificationSystem notificationSystem;
+
     public GameEngine(Screen screen) {
         this.screen = screen;
         this.random = new Random();
@@ -55,38 +60,53 @@ public class GameEngine {
         this.chaserAwakened = false;
         this.caughtByChaser = false;
         this.gameState = GameState.MENU;
+
+        // 初始化通知系统和成就管理器
+        this.notificationSystem = new NotificationSystem();
+        AchievementManager.getInstance().setNotificationSystem(notificationSystem);
     }
-    
+
     /**
      * 更新游戏状态
      */
     public void update() throws IOException {
+        // 更新通知系统
+        notificationSystem.update();
+
         if (gameState != GameState.PLAYING) {
             return;
         }
-        
+
         // 更新玩家状态
         player.update();
-        
+
         // 更新分数和距离
         scoreSystem.update(gameSpeed);
-        
+
+        // 检查距离成就
+        checkDistanceAchievements();
+
+        // 检查分数成就
+        if (scoreSystem.getScore() >= 5000) {
+            AchievementManager.getInstance().unlockAchievement(Achievement.MASTER);
+        }
+
         // 更新游戏速度
         gameSpeed = GameConfig.BASE_GAME_SPEED + scoreSystem.getScore() / GameConfig.SPEED_INCREASE_INTERVAL;
-        
+
         // 生成新障碍物
         if (random.nextInt(GameConfig.OBSTACLE_SPAWN_RATE) < gameSpeed) {
             int lane = random.nextInt(GameConfig.ROAD_WIDTH);
             int type = random.nextInt(GameConfig.OBSTACLE_TYPES);
             obstacles.add(new Obstacle(lane, 0, type));
         }
-        
+
         // 移动障碍物
         TerminalSize size = screen.getTerminalSize();
         List<Obstacle> obstaclesToRemove = new ArrayList<>();
         for (Obstacle obstacle : obstacles) {
             obstacle.move(gameSpeed);
-            
+
             // 移除超出屏幕的障碍物并加分
             if (obstacle.isOutOfScreen(size.getRows())) {
                 obstaclesToRemove.add(obstacle);
@@ -94,21 +114,38 @@ public class GameEngine {
             }
         }
         obstacles.removeAll(obstaclesToRemove);
-        
+
         // 更新追逐者
         int playerY = player.calculateY(size.getRows());
         chaser.update(playerY, gameSpeed);
-        
+
         if (chaserVisibleTimer > 0) {
             chaserVisibleTimer--;
+            // 检查幸存者成就（简单模拟：如果追逐者出现且计时器快结束时还活着）
+            if (chaserVisibleTimer == 1 && !caughtByChaser) {
+                AchievementManager.getInstance().unlockAchievement(Achievement.SURVIVOR);
+            }
         }
-        
+
         // 碰撞检测
         if (collisionSystem.checkCollision(player, obstacles, size.getRows())) {
             handlePlayerHit();
         }
     }
-    
+
+    private void checkDistanceAchievements() {
+        int distance = scoreSystem.getDistance();
+        if (distance >= 10) {
+            AchievementManager.getInstance().unlockAchievement(Achievement.FIRST_STEP);
+        }
+        if (distance >= 100) {
+            AchievementManager.getInstance().unlockAchievement(Achievement.SPRINTER);
+        }
+        if (distance >= 1000) {
+            AchievementManager.getInstance().unlockAchievement(Achievement.MARATHON);
+        }
+    }
+
     /**
      * 开始游戏
      */
@@ -125,7 +162,7 @@ public class GameEngine {
         TerminalSize size = screen.getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
     }
-    
+
     /**
      * 重置游戏
      */
@@ -142,7 +179,7 @@ public class GameEngine {
         TerminalSize size = screen.getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
     }
-    
+
     /**
      * 切换暂停状态
      */
@@ -153,103 +190,107 @@ public class GameEngine {
             gameState = GameState.PLAYING;
         }
     }
-    
+
     // Getters
     public GameState getGameState() {
         return gameState;
     }
-    
+
     public Player getPlayer() {
         return player;
     }
-    
+
     public List<Obstacle> getObstacles() {
         return obstacles;
     }
-    
+
     public ScoreSystem getScoreSystem() {
         return scoreSystem;
     }
-    
+
     public int getGameSpeed() {
         return gameSpeed;
     }
-    
+
     public Chaser getChaser() {
         return chaser;
     }
-    
+
     public boolean isChaserVisible() {
         return chaserAwakened && chaserVisibleTimer > 0 && gameState == GameState.PLAYING;
     }
-    
+
     public boolean isCaughtByChaser() {
         return caughtByChaser;
     }
-    
+
+    public NotificationSystem getNotificationSystem() {
+        return notificationSystem;
+    }
+
     /**
      * 进入设置界面
      */
     public void enterSettings() {
         gameState = GameState.SETTINGS;
     }
-    
+
     /**
      * 返回菜单
      */
     public void returnToMenu() {
         gameState = GameState.MENU;
     }
-    
+
     /**
      * 设置游戏状态（用于恢复状态）
      */
     public void setGameState(GameState state) {
         this.gameState = state;
     }
-    
+
     /**
      * 进入存档菜单
      */
     public void enterSaveMenu() {
         gameState = GameState.SAVE_MENU;
     }
-    
+
     /**
      * 进入读档菜单
      */
     public void enterLoadMenu() {
         gameState = GameState.LOAD_MENU;
     }
-    
+
     /**
      * 保存游戏
      */
     public boolean saveGame(String saveName) {
         SaveManager.GameSaveData saveData = new SaveManager.GameSaveData();
-        
+
         // 保存玩家数据
         saveData.playerLane = player.getLane();
         saveData.playerY = player.getY();
         saveData.playerState = player.getState().name();
         saveData.playerStateTimer = player.getStateTimer();
-        
+
         // 保存追逐者数据
         saveData.chaserY = chaser.getY();
         saveData.chaserAnimationTick = chaser.getAnimationTick();
-        
+
         // 保存游戏状态
         saveData.gameSpeed = gameSpeed;
         saveData.hitCount = hitCount;
         saveData.chaserVisibleTimer = chaserVisibleTimer;
         saveData.chaserAwakened = chaserAwakened;
         saveData.caughtByChaser = caughtByChaser;
-        
+
         // 保存分数系统
         saveData.score = scoreSystem.getScore();
         saveData.distance = scoreSystem.getDistance();
         saveData.combo = scoreSystem.getCombo();
-        
+
         // 保存障碍物
         saveData.obstacles = new ArrayList<>();
         for (Obstacle obstacle : obstacles) {
@@ -259,10 +300,10 @@ public class GameEngine {
             obsData.type = obstacle.getType();
             saveData.obstacles.add(obsData);
         }
-        
+
         return SaveManager.getInstance().saveGame(saveName, saveData);
     }
-    
+
     /**
      * 加载游戏
      */
@@ -271,53 +312,56 @@ public class GameEngine {
         if (saveData == null) {
             return false;
         }
-        
+
         // 恢复玩家数据
         player.setLane(saveData.playerLane);
         player.setY(saveData.playerY);
         player.setStateFromString(saveData.playerState);
         player.setStateTimer(saveData.playerStateTimer);
-        
+
         // 恢复追逐者数据
         chaser.setY(saveData.chaserY);
         chaser.setAnimationTick(saveData.chaserAnimationTick);
-        
+
         // 恢复游戏状态
         gameSpeed = saveData.gameSpeed;
         hitCount = saveData.hitCount;
         chaserVisibleTimer = saveData.chaserVisibleTimer;
         chaserAwakened = saveData.chaserAwakened;
         caughtByChaser = saveData.caughtByChaser;
-        
+
         // 恢复分数系统
         scoreSystem.setScore(saveData.score);
         scoreSystem.setDistance(saveData.distance);
         scoreSystem.setCombo(saveData.combo);
-        
+
         // 恢复障碍物
         obstacles.clear();
         for (SaveManager.ObstacleData obsData : saveData.obstacles) {
             obstacles.add(new Obstacle(obsData.lane, obsData.y, obsData.type));
         }
-        
+
         // 恢复游戏状态
         if (caughtByChaser) {
             gameState = GameState.GAME_OVER;
         } else {
             gameState = GameState.PLAYING;
         }
-        
+
         return true;
     }
-    
+
     private void handlePlayerHit() {
         hitCount++;
         chaserAwakened = true;
         chaserVisibleTimer = CHASER_VISIBLE_DURATION;
+
+        // 解锁受伤成就
+        AchievementManager.getInstance().unlockAchievement(Achievement.OUCH);
+
         if (hitCount >= 3) {
             caughtByChaser = true;
             gameState = GameState.GAME_OVER;
         }
     }
 }
-
