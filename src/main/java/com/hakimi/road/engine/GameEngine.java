@@ -18,11 +18,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * 游戏引擎
  * 负责游戏逻辑更新
  */
 public class GameEngine {
+    private static final Logger logger = LogManager.getLogger(GameEngine.class);
     private Screen screen;
     private Random random;
     private CollisionSystem collisionSystem;
@@ -301,6 +305,9 @@ public class GameEngine {
             saveData.obstacles.add(obsData);
         }
 
+        // 保存成就
+        saveData.unlockedAchievements = AchievementManager.getInstance().getUnlockedAchievementIds();
+
         return SaveManager.getInstance().saveGame(saveName, saveData);
     }
 
@@ -340,6 +347,9 @@ public class GameEngine {
         for (SaveManager.ObstacleData obsData : saveData.obstacles) {
             obstacles.add(new Obstacle(obsData.lane, obsData.y, obsData.type));
         }
+
+        // 恢复成就
+        AchievementManager.getInstance().mergeUnlockedAchievements(saveData.unlockedAchievements);
 
         // 恢复游戏状态
         if (caughtByChaser) {

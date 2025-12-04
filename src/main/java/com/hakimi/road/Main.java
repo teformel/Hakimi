@@ -13,6 +13,9 @@ import com.hakimi.road.util.GameConfig;
 import com.hakimi.road.util.SaveManager;
 import com.hakimi.road.util.SettingsManager;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.util.List;
 import javax.swing.SwingUtilities;
@@ -22,6 +25,7 @@ import javax.swing.SwingUtilities;
  * 负责初始化游戏并运行主循环
  */
 public class Main {
+    private static final Logger logger = LogManager.getLogger(Main.class);
     private Screen screen;
     private GameEngine gameEngine;
     private RenderEngine renderEngine;
@@ -42,8 +46,10 @@ public class Main {
     public static void main(String[] args) {
         Main game = new Main();
         try {
+            logger.info("Starting Hakimi Road...");
             game.run();
         } catch (IOException | InterruptedException e) {
+            logger.error("Game crashed: ", e);
             e.printStackTrace();
         }
     }
