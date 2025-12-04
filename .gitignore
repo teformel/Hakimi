@@ -36,6 +36,7 @@ build/
 
 node_modules/
 data/
+logs/
 
 ### Mac OS ###
 .DS_Store
