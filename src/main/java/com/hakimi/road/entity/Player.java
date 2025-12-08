@@ -16,6 +16,8 @@ public class Player {
     private PlayerState state; // 玩家状态
     private int stateTimer; // 状态计时器
     private int verticalOffset; // 垂直偏移量（用于跳跃，正值表示向上）
+    private int driedFishCount; // 小鱼干数量
+    private boolean hasHagenAbility; // 是否拥有哈根能力
 
     public enum PlayerState {
         NORMAL, // 正常状态
@@ -28,6 +30,8 @@ public class Player {
         this.state = PlayerState.NORMAL;
         this.stateTimer = 0;
         this.verticalOffset = 0;
+        this.driedFishCount = 0;
+        this.hasHagenAbility = false;
         logger.debug("Player创建: 初始车道={}", lane);
     }
 
@@ -174,6 +178,35 @@ public class Player {
             this.state = PlayerState.valueOf(stateStr);
         } catch (IllegalArgumentException e) {
             this.state = PlayerState.NORMAL;
+        }
+    }
+
+    // Dried Fish Methods
+    public int getDriedFishCount() {
+        return driedFishCount;
+    }
+
+    public void addDriedFish(int amount) {
+        this.driedFishCount += amount;
+    }
+
+    public void setDriedFishCount(int count) {
+        this.driedFishCount = count;
+    }
+
+    // Hagen Ability Methods
+    public boolean hasHagenAbility() {
+        return hasHagenAbility;
+    }
+
+    public void setHagenAbility(boolean hasAbility) {
+        this.hasHagenAbility = hasAbility;
+    }
+
+    public void consumeHagen() {
+        if (this.hasHagenAbility) {
+            this.hasHagenAbility = false;
+            logger.info("玩家使用了哈根能力！");
         }
     }
 }

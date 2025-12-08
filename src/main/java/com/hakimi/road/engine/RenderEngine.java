@@ -4,6 +4,7 @@ import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.screen.Screen;
 import com.hakimi.road.entity.Chaser;
+import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.util.GameConfig;
@@ -111,7 +112,7 @@ public class RenderEngine {
     /**
      * 渲染游戏界面
      */
-    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles,
+    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles, List<Item> items,
             boolean showChaser, int score, int distance, int gameSpeed,
             int width, int height) throws IOException {
         screen.clear();
@@ -128,6 +129,13 @@ public class RenderEngine {
             int obstacleRow = Math.max(0, Math.min(height - 2, obstacle.getY()));
             int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
             drawObstacle(tg, laneX, obstacleRow, obstacle.getType());
+        }
+
+        // 绘制道具
+        for (Item item : items) {
+            int itemRow = Math.max(0, Math.min(height - 2, item.getY()));
+            int laneX = GameConfig.calculateLaneX(width, height, item.getLane(), itemRow);
+            drawItem(tg, laneX, itemRow, item.getType());
         }
 
         int playerY = player.calculateY(height);
@@ -159,6 +167,13 @@ public class RenderEngine {
         tg.putString(hudX, 1, "分数: " + score);
         tg.putString(hudX, 2, "距离: " + distance);
         tg.putString(hudX, 3, "速度: " + gameSpeed);
+        tg.putString(hudX, 4, "小鱼干: " + player.getDriedFishCount());
+
+        if (player.hasHagenAbility()) {
+            tg.setForegroundColor(TextColor.ANSI.YELLOW);
+            tg.putString(hudX, 6, "★ 哈根之力 ★");
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
+        }
 
         // 绘制车道指示器（放在底部，不占用跑道空间）
         for (int i = 0; i < GameConfig.ROAD_WIDTH; i++) {
@@ -330,6 +345,31 @@ public class RenderEngine {
                     tg.putString(x - 2, y + i, fence[i]);
                 }
             }
+        }
+    }
+
+    /**
+     * 绘制道具
+     */
+    private void drawItem(TextGraphics tg, int x, int y, Item.ItemType type) {
+        if (type == Item.ItemType.DRIED_FISH) {
+            tg.setForegroundColor(TextColor.ANSI.CYAN);
+            if (y >= 0)
+                tg.putString(x - 1, y, "><>");
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
+        } else if (type == Item.ItemType.HAGEN_ABILITY) {
+            tg.setForegroundColor(TextColor.ANSI.YELLOW);
+            String[] hagen = {
+                    " /|\\ ",
+                    "([★])",
+                    " \\|/ "
+            };
+            for (int i = 0; i < hagen.length; i++) {
+                if (y + i >= 0) {
+                    tg.putString(x - 2, y + i, hagen[i]);
+                }
+            }
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
         }
     }
 

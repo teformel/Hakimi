@@ -35,11 +35,17 @@ public class ScoreSystem {
         combo++;
         int oldScore = score;
         score += com.hakimi.road.util.GameConfig.SCORE_PER_OBSTACLE;
-        // 连击奖励
         if (combo > 5) {
             score += combo / 5;
         }
         logger.debug("躲避障碍物: 分数 {} -> {}, 连击={}", oldScore, score, combo);
+    }
+
+    /**
+     * 增加指定分数
+     */
+    public void addScore(int amount) {
+        this.score += amount;
     }
 
     /**

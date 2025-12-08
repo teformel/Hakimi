@@ -56,6 +56,8 @@ public class SaveManager {
             props.setProperty("player.y", String.valueOf(saveData.playerY));
             props.setProperty("player.state", saveData.playerState);
             props.setProperty("player.stateTimer", String.valueOf(saveData.playerStateTimer));
+            props.setProperty("player.driedFishCount", String.valueOf(saveData.driedFishCount));
+            props.setProperty("player.hasHagenAbility", String.valueOf(saveData.hasHagenAbility));
 
             // 保存追逐者数据
             props.setProperty("chaser.y", String.valueOf(saveData.chaserY));
@@ -80,6 +82,16 @@ public class SaveManager {
                 props.setProperty("obstacle." + i + ".lane", String.valueOf(obs.lane));
                 props.setProperty("obstacle." + i + ".y", String.valueOf(obs.y));
                 props.setProperty("obstacle." + i + ".type", String.valueOf(obs.type));
+                props.setProperty("obstacle." + i + ".type", String.valueOf(obs.type));
+            }
+
+            // 保存道具
+            props.setProperty("items.count", String.valueOf(saveData.items.size()));
+            for (int i = 0; i < saveData.items.size(); i++) {
+                ItemData item = saveData.items.get(i);
+                props.setProperty("item." + i + ".lane", String.valueOf(item.lane));
+                props.setProperty("item." + i + ".y", String.valueOf(item.y));
+                props.setProperty("item." + i + ".type", item.type);
             }
 
             // 保存时间戳
@@ -129,6 +141,8 @@ public class SaveManager {
             saveData.playerY = Integer.parseInt(props.getProperty("player.y", "0"));
             saveData.playerState = props.getProperty("player.state", "NORMAL");
             saveData.playerStateTimer = Integer.parseInt(props.getProperty("player.stateTimer", "0"));
+            saveData.driedFishCount = Integer.parseInt(props.getProperty("player.driedFishCount", "0"));
+            saveData.hasHagenAbility = Boolean.parseBoolean(props.getProperty("player.hasHagenAbility", "false"));
 
             // 加载追逐者数据
             saveData.chaserY = Integer.parseInt(props.getProperty("chaser.y", "0"));
@@ -155,6 +169,18 @@ public class SaveManager {
                 obs.y = Integer.parseInt(props.getProperty("obstacle." + i + ".y", "0"));
                 obs.type = Integer.parseInt(props.getProperty("obstacle." + i + ".type", "0"));
                 saveData.obstacles.add(obs);
+                saveData.obstacles.add(obs);
+            }
+
+            // 加载道具
+            int itemCount = Integer.parseInt(props.getProperty("items.count", "0"));
+            saveData.items = new ArrayList<>();
+            for (int i = 0; i < itemCount; i++) {
+                ItemData item = new ItemData();
+                item.lane = Integer.parseInt(props.getProperty("item." + i + ".lane", "0"));
+                item.y = Integer.parseInt(props.getProperty("item." + i + ".y", "0"));
+                item.type = props.getProperty("item." + i + ".type", "DRIED_FISH");
+                saveData.items.add(item);
             }
 
             saveData.timestamp = Long.parseLong(props.getProperty("save.timestamp", "0"));
@@ -248,6 +274,8 @@ public class SaveManager {
         public int playerY;
         public String playerState;
         public int playerStateTimer;
+        public int driedFishCount;
+        public boolean hasHagenAbility;
 
         public int chaserY;
         public int chaserAnimationTick;
@@ -263,6 +291,7 @@ public class SaveManager {
         public int combo;
 
         public List<ObstacleData> obstacles;
+        public List<ItemData> items;
         public List<String> unlockedAchievements;
         public long timestamp;
     }
@@ -274,5 +303,14 @@ public class SaveManager {
         public int lane;
         public int y;
         public int type;
+    }
+
+    /**
+     * 道具数据类
+     */
+    public static class ItemData {
+        public int lane;
+        public int y;
+        public String type;
     }
 }

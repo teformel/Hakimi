@@ -3,6 +3,7 @@ package com.hakimi.road.engine;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.screen.Screen;
 import com.hakimi.road.entity.Chaser;
+import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.system.Achievement;
@@ -35,6 +36,7 @@ public class GameEngine {
     private Player player;
     private Chaser chaser;
     private List<Obstacle> obstacles;
+    private List<Item> items;
     private int gameSpeed;
     private int hitCount;
     private int chaserVisibleTimer;
@@ -57,6 +59,7 @@ public class GameEngine {
         this.scoreSystem = new ScoreSystem();
         this.player = new Player();
         this.obstacles = new ArrayList<>();
+        this.items = new ArrayList<>();
         this.chaser = new Chaser();
         this.gameSpeed = GameConfig.BASE_GAME_SPEED;
         this.hitCount = 0;
@@ -106,19 +109,44 @@ public class GameEngine {
             obstacles.add(new Obstacle(lane, 0, type));
         }
 
+        // 生成道具 (5% 概率)
+        if (random.nextInt(100) < 5) {
+            int lane = random.nextInt(GameConfig.ROAD_WIDTH);
+            // 简单检查该车道顶部是否有障碍物，避免重叠
+            boolean occupied = false;
+            for (Obstacle o : obstacles) {
+                if (o.getLane() == lane && o.getY() < 5) {
+                    occupied = true;
+                    break;
+                }
+            }
+            if (!occupied) {
+                Item.ItemType type = (random.nextInt(10) == 0) ? Item.ItemType.HAGEN_ABILITY : Item.ItemType.DRIED_FISH;
+                items.add(new Item(lane, 0, type));
+            }
+        }
+
         // 移动障碍物
         TerminalSize size = screen.getTerminalSize();
         List<Obstacle> obstaclesToRemove = new ArrayList<>();
         for (Obstacle obstacle : obstacles) {
             obstacle.move(gameSpeed);
-
-            // 移除超出屏幕的障碍物并加分
             if (obstacle.isOutOfScreen(size.getRows())) {
                 obstaclesToRemove.add(obstacle);
                 scoreSystem.obstacleAvoided();
             }
         }
         obstacles.removeAll(obstaclesToRemove);
+
+        // 移动道具
+        List<Item> itemsToRemove = new ArrayList<>();
+        for (Item item : items) {
+            item.move(gameSpeed);
+            if (item.isOutOfScreen(size.getRows())) {
+                itemsToRemove.add(item);
+            }
+        }
+        items.removeAll(itemsToRemove);
 
         // 更新追逐者
         int playerY = player.calculateY(size.getRows());
@@ -132,9 +160,40 @@ public class GameEngine {
             }
         }
 
-        // 碰撞检测
-        if (collisionSystem.checkCollision(player, obstacles, size.getRows())) {
-            handlePlayerHit();
+        // 道具收集检测
+        Item collectedItem = collisionSystem.checkItemCollision(player, items, size.getRows());
+        if (collectedItem != null) {
+            items.remove(collectedItem);
+            if (collectedItem.getType() == Item.ItemType.DRIED_FISH) {
+                player.addDriedFish(1);
+                // 可以加一点分数
+                scoreSystem.addScore(100);
+            } else if (collectedItem.getType() == Item.ItemType.HAGEN_ABILITY) {
+                player.setHagenAbility(true);
+                notificationSystem.addNotification("获得哈根之力!", "被人抓住时自动触发", "★", 3000,
+                        com.googlecode.lanterna.TextColor.ANSI.YELLOW);
+            }
+        }
+
+        // 障碍物碰撞检测
+        Obstacle hitObstacle = collisionSystem.getCollidedObstacle(player, obstacles, size.getRows());
+        if (hitObstacle != null) {
+            if (player.hasHagenAbility()) {
+                // 触发哈根能力
+                player.consumeHagen();
+                obstacles.remove(hitObstacle); // 移除障碍物，表示被哈走了
+
+                // 吓退追逐者
+                if (chaserAwakened) {
+                    chaserAwakened = false;
+                    chaserVisibleTimer = 0;
+                }
+
+                notificationSystem.addNotification("哈根!!!!!!", "吓退了敌人!", "⚡", 2000,
+                        com.googlecode.lanterna.TextColor.ANSI.RED);
+            } else {
+                handlePlayerHit();
+            }
         }
     }
 
@@ -159,6 +218,7 @@ public class GameEngine {
         gameState = GameState.PLAYING;
         player = new Player();
         obstacles.clear();
+        items.clear();
         scoreSystem.reset();
         hitCount = 0;
         chaserVisibleTimer = 0;
@@ -177,6 +237,7 @@ public class GameEngine {
         gameState = GameState.MENU;
         player = new Player();
         obstacles.clear();
+        items.clear();
         scoreSystem.reset();
         hitCount = 0;
         chaserVisibleTimer = 0;
@@ -209,6 +270,10 @@ public class GameEngine {
 
     public List<Obstacle> getObstacles() {
         return obstacles;
+    }
+
+    public List<Item> getItems() {
+        return items;
     }
 
     public ScoreSystem getScoreSystem() {
@@ -281,6 +346,8 @@ public class GameEngine {
         saveData.playerY = player.getY();
         saveData.playerState = player.getState().name();
         saveData.playerStateTimer = player.getStateTimer();
+        saveData.driedFishCount = player.getDriedFishCount();
+        saveData.hasHagenAbility = player.hasHagenAbility();
 
         // 保存追逐者数据
         saveData.chaserY = chaser.getY();
@@ -308,6 +375,16 @@ public class GameEngine {
             saveData.obstacles.add(obsData);
         }
 
+        // 保存道具
+        saveData.items = new ArrayList<>();
+        for (Item item : items) {
+            SaveManager.ItemData itemData = new SaveManager.ItemData();
+            itemData.lane = item.getLane();
+            itemData.y = item.getY();
+            itemData.type = item.getType().name();
+            saveData.items.add(itemData);
+        }
+
         // 保存成就
         saveData.unlockedAchievements = AchievementManager.getInstance().getUnlockedAchievementIds();
 
@@ -328,6 +405,8 @@ public class GameEngine {
         player.setY(saveData.playerY);
         player.setStateFromString(saveData.playerState);
         player.setStateTimer(saveData.playerStateTimer);
+        player.setDriedFishCount(saveData.driedFishCount);
+        player.setHagenAbility(saveData.hasHagenAbility);
 
         // 恢复追逐者数据
         chaser.setY(saveData.chaserY);
@@ -349,6 +428,19 @@ public class GameEngine {
         obstacles.clear();
         for (SaveManager.ObstacleData obsData : saveData.obstacles) {
             obstacles.add(new Obstacle(obsData.lane, obsData.y, obsData.type));
+        }
+
+        // 恢复道具
+        items.clear();
+        if (saveData.items != null) {
+            for (SaveManager.ItemData itemData : saveData.items) {
+                try {
+                    Item.ItemType type = Item.ItemType.valueOf(itemData.type);
+                    items.add(new Item(itemData.lane, itemData.y, type));
+                } catch (IllegalArgumentException e) {
+                    // 忽略无效的道具类型
+                }
+            }
         }
 
         // 恢复成就

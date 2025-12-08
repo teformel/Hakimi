@@ -221,6 +221,7 @@ public class Main {
                         gameEngine.getPlayer(),
                         gameEngine.getChaser(),
                         gameEngine.getObstacles(),
+                        gameEngine.getItems(),
                         gameEngine.isChaserVisible(),
                         gameEngine.getScoreSystem().getScore(),
                         gameEngine.getScoreSystem().getDistance(),

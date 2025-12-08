@@ -16,9 +16,40 @@ public class CollisionSystem {
     private static final Logger logger = LogManager.getLogger(CollisionSystem.class);
 
     /**
+     * 获取碰撞的障碍物
+     * 
+     * @return 碰撞的障碍物，如果没有碰撞则返回null
+     */
+    public Obstacle getCollidedObstacle(Player player, List<Obstacle> obstacles, int screenHeight) {
+        int playerLane = player.getLane();
+        int playerY = player.calculateY(screenHeight);
+        int playerHeight = com.hakimi.road.util.GameConfig.PLAYER_HEIGHT;
+
+        for (Obstacle obstacle : obstacles) {
+            if (obstacle.checkCollision(playerLane, playerY, playerHeight, screenHeight)) {
+                // 检查玩家状态是否可以躲避
+                if (obstacle.getHeight() == Obstacle.ObstacleHeight.LOW && player.isJumping()) {
+                    continue;
+                } else if (obstacle.getHeight() == Obstacle.ObstacleHeight.HIGH && player.isSliding()) {
+                    continue;
+                } else if (obstacle.getHeight() == Obstacle.ObstacleHeight.FULL) {
+                    if (obstacle.getLane() == playerLane) {
+                        return obstacle;
+                    }
+                    continue;
+                } else {
+                    return obstacle;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * 检查玩家是否与障碍物碰撞
      */
     public boolean checkCollision(Player player, List<Obstacle> obstacles, int screenHeight) {
+
         int playerLane = player.getLane();
         int playerY = player.calculateY(screenHeight);
         int playerHeight = com.hakimi.road.util.GameConfig.PLAYER_HEIGHT;
@@ -50,5 +81,29 @@ public class CollisionSystem {
             }
         }
         return false;
+    }
+
+    /**
+     * 检查玩家是否与道具碰撞
+     * 
+     * @return 碰撞的道具，如果没有碰撞则返回null
+     */
+    public com.hakimi.road.entity.Item checkItemCollision(Player player, List<com.hakimi.road.entity.Item> items,
+            int screenHeight) {
+        int playerLane = player.getLane();
+        int playerY = player.calculateY(screenHeight);
+
+        // 简单的碰撞判定：同车道且y轴距离够近
+        for (com.hakimi.road.entity.Item item : items) {
+            if (item.getLane() == playerLane) {
+                // 道具通常较小，只要中心点接近即可
+                int dist = Math.abs(item.getY() - playerY);
+                if (dist <= 1) {
+                    logger.debug("检测到道具拾取: type={}", item.getType());
+                    return item;
+                }
+            }
+        }
+        return null;
     }
 }
