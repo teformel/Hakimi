@@ -592,6 +592,7 @@ public class RenderEngine {
                 "障碍物生成频率: " + settings.getObstacleSpawnRate(),
                 "速度增加间隔: " + settings.getSpeedIncreaseInterval(),
                 "游戏循环延迟(ms): " + settings.getGameLoopDelayMs(),
+                "显示模式: " + getDisplayModeName(settings.getDisplayMode()) + " (需重启)",
                 "重置为默认值",
                 "返回菜单"
         };
@@ -720,5 +721,18 @@ public class RenderEngine {
         tg.putString(width / 2 - hint.length() / 2, height - 2, hint);
 
         screen.refresh();
+    }
+
+    private String getDisplayModeName(int mode) {
+        switch (mode) {
+            case 0:
+                return "自动";
+            case 1:
+                return "窗口";
+            case 2:
+                return "终端";
+            default:
+                return "未知";
+        }
     }
 }

@@ -79,13 +79,34 @@ public class Main {
         TerminalSize size = new TerminalSize(GameConfig.TERMINAL_WIDTH, GameConfig.TERMINAL_HEIGHT);
         terminalFactory.setInitialTerminalSize(size);
 
-        // 检测操作系统，在 Linux/WSL2 环境中使用 ANSI 终端，在 Windows 上使用 Swing 终端
+        // 获取显示模式设置
+        int displayMode = SettingsManager.getInstance().getDisplayMode();
+        // 0=Auto, 1=Swing, 2=Console
+
+        // 检测操作系统
         String osName = System.getProperty("os.name", "").toLowerCase();
         boolean isWindows = osName.contains("windows");
         boolean isLinux = osName.contains("linux") || osName.contains("unix");
 
-        if (isWindows) {
+        // 决定使用哪种终端
+        boolean useSwing = false;
+
+        if (displayMode == 1) {
+            useSwing = true;
+        } else if (displayMode == 2) {
+            useSwing = false;
+        } else {
+            // Auto mode
+            if (isWindows) {
+                useSwing = true;
+            } else {
+                useSwing = false;
+            }
+        }
+
+        if (useSwing) {
             // 在 Windows 上强制使用 Swing 终端，避免使用 javaw 和 stty.exe 的问题
+            // 或者用户明确选择了 Swing 模式
             System.setProperty("java.awt.headless", "false");
             try {
                 // 创建 SwingTerminal
@@ -95,11 +116,18 @@ public class Main {
                     terminal.setVisible(true);
                 });
                 screen = new TerminalScreen(terminal);
-            } catch (Exception e) {
-                throw new IOException("无法初始化 Swing 终端", e);
+            } catch (Throwable e) {
+                logger.error("无法初始化 Swing 终端 (可能缺少图形界面库), 尝试回退到控制台模式", e);
+                logger.info("自动将显示模式更新为终端模式 (Console)");
+                // 回退到控制台模式
+                screen = terminalFactory.createScreen();
+                // 更新配置文件，避免下次启动再次尝试失败
+                SettingsManager.getInstance().setDisplayMode(2); // 2 = Console
+                SettingsManager.getInstance().saveSettings();
             }
         } else {
             // 在 Linux/WSL2 环境中使用 ANSI 终端（不依赖 X11）
+            // 或者用户明确选择了 Console 模式
             screen = terminalFactory.createScreen();
         }
 
@@ -110,8 +138,9 @@ public class Main {
         // 在Linux/ANSI终端中，确保画面从顶部开始显示
         // 清空屏幕并移动到顶部
         screen.clear();
-        // 在Linux环境中，添加额外的清屏操作，确保显示从顶部开始
-        if (isLinux) {
+        // 如果最终使用的是非Swing终端（即Console模式），确保ANSI转义序列正确输出
+        if (!(screen instanceof TerminalScreen
+                && ((TerminalScreen) screen).getTerminal() instanceof SwingTerminalFrame)) {
             // 输出ANSI转义序列，将光标移动到左上角并清屏
             System.out.print("\033[H\033[2J");
             System.out.flush();
@@ -282,7 +311,7 @@ public class Main {
         if (key.getKeyType() == KeyType.ArrowUp) {
             settingsSelectedOption = Math.max(0, settingsSelectedOption - 1);
         } else if (key.getKeyType() == KeyType.ArrowDown) {
-            int maxOptions = 6;
+            int maxOptions = 7;
             settingsSelectedOption = Math.min(maxOptions - 1, settingsSelectedOption + 1);
         } else if (key.getKeyType() == KeyType.ArrowLeft) {
             // 减少数值
@@ -310,6 +339,12 @@ public class Main {
                         settings.setGameLoopDelayMs(settings.getGameLoopDelayMs() - 10);
                         settings.saveSettings();
                     }
+                    break;
+                case 4: // 显示模式
+                    int currentMode = settings.getDisplayMode();
+                    int newMode = (currentMode + 2) % 3; // 0->2->1->0 (reverse)
+                    settings.setDisplayMode(newMode);
+                    settings.saveSettings();
                     break;
             }
         } else if (key.getKeyType() == KeyType.ArrowRight) {
@@ -339,12 +374,18 @@ public class Main {
                         settings.saveSettings();
                     }
                     break;
+                case 4: // 显示模式
+                    int currentMode = settings.getDisplayMode();
+                    int newMode = (currentMode + 1) % 3; // 0->1->2->0
+                    settings.setDisplayMode(newMode);
+                    settings.saveSettings();
+                    break;
             }
         } else if (inputSystem.isEnterPressed(key)) {
-            if (settingsSelectedOption == 4) {
+            if (settingsSelectedOption == 5) {
                 // 重置为默认值
                 settings.resetToDefaults();
-            } else if (settingsSelectedOption == 5) {
+            } else if (settingsSelectedOption == 6) {
                 // 返回菜单
                 gameEngine.returnToMenu();
             }

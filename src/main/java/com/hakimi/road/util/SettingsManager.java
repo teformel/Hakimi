@@ -27,6 +27,7 @@ public class SettingsManager {
     private static final int DEFAULT_OBSTACLE_SPAWN_RATE = 10;
     private static final int DEFAULT_SPEED_INCREASE_INTERVAL = 50;
     private static final int DEFAULT_GAME_LOOP_DELAY_MS = 100;
+    private static final int DEFAULT_DISPLAY_MODE = 0; // 0=Auto, 1=Swing, 2=Console
 
     private SettingsManager() {
         settings = new Properties();
@@ -96,6 +97,7 @@ public class SettingsManager {
         settings.setProperty("obstacleSpawnRate", String.valueOf(DEFAULT_OBSTACLE_SPAWN_RATE));
         settings.setProperty("speedIncreaseInterval", String.valueOf(DEFAULT_SPEED_INCREASE_INTERVAL));
         settings.setProperty("gameLoopDelayMs", String.valueOf(DEFAULT_GAME_LOOP_DELAY_MS));
+        settings.setProperty("displayMode", String.valueOf(DEFAULT_DISPLAY_MODE));
         logger.debug("应用默认设置");
     }
 
@@ -135,6 +137,23 @@ public class SettingsManager {
     public void setGameLoopDelayMs(int delay) {
         settings.setProperty("gameLoopDelayMs", String.valueOf(delay));
         logger.debug("更新游戏循环延迟: {}ms", delay);
+    }
+
+    /**
+     * 获取显示模式
+     * 0=Auto, 1=Swing, 2=Console
+     */
+    public int getDisplayMode() {
+        return Integer.parseInt(settings.getProperty("displayMode", String.valueOf(DEFAULT_DISPLAY_MODE)));
+    }
+
+    /**
+     * 设置显示模式
+     * 0=Auto, 1=Swing, 2=Console
+     */
+    public void setDisplayMode(int mode) {
+        settings.setProperty("displayMode", String.valueOf(mode));
+        logger.debug("更新显示模式: {}", mode);
     }
 
     /**
