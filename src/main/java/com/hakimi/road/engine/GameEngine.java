@@ -12,6 +12,8 @@ import com.hakimi.road.system.Achievement;
 import com.hakimi.road.system.AchievementManager;
 import com.hakimi.road.system.CollisionSystem;
 import com.hakimi.road.system.ScoreSystem;
+import com.hakimi.road.level.Level;
+import com.hakimi.road.level.LevelManager;
 import com.hakimi.road.ui.NotificationSystem;
 import com.hakimi.road.util.GameConfig;
 import com.hakimi.road.util.SaveManager;
@@ -55,6 +57,7 @@ public class GameEngine {
     private GameState gameState;
 
     private NotificationSystem notificationSystem;
+    private LevelManager levelManager;
 
     public GameEngine(Screen screen) {
         this.screen = screen;
@@ -75,7 +78,9 @@ public class GameEngine {
         this.gameState = GameState.MENU;
 
         // 初始化通知系统和成就管理器
+        // 初始化通知系统和成就管理器
         this.notificationSystem = new NotificationSystem();
+        this.levelManager = new LevelManager();
         AchievementManager.getInstance().setNotificationSystem(notificationSystem);
         logger.info("GameEngine初始化完成");
     }
@@ -102,6 +107,9 @@ public class GameEngine {
 
         // 更新分数和距离
         scoreSystem.update(gameSpeed);
+
+        // 更新关卡
+        levelManager.update(scoreSystem.getDistance());
 
         // 检查距离成就
         checkDistanceAchievements();
@@ -338,6 +346,10 @@ public class GameEngine {
 
     public NotificationSystem getNotificationSystem() {
         return notificationSystem;
+    }
+
+    public Level getCurrentLevel() {
+        return levelManager.getCurrentLevel();
     }
 
     /**

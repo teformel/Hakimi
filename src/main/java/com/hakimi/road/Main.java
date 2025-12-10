@@ -246,6 +246,7 @@ public class Main {
             case PLAYING:
             case PAUSED:
                 renderEngine.renderGame(
+                        gameEngine.getCurrentLevel(),
                         gameEngine.getPlayer(),
                         gameEngine.getChaser(),
                         gameEngine.getObstacles(),

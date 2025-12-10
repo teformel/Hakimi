@@ -8,6 +8,7 @@ import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.entity.Scenery;
+import com.hakimi.road.level.Level;
 import com.hakimi.road.util.GameConfig;
 import com.hakimi.road.util.SaveManager;
 import com.hakimi.road.util.SettingsManager;
@@ -113,7 +114,7 @@ public class RenderEngine {
     /**
      * 渲染游戏界面
      */
-    public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles, List<Item> items,
+    public void renderGame(Level level, Player player, Chaser chaser, List<Obstacle> obstacles, List<Item> items,
             List<Scenery> sceneryList,
             boolean showChaser, int score, int distance, int gameSpeed,
             int width, int height) throws IOException {
@@ -123,7 +124,7 @@ public class RenderEngine {
         tg.setForegroundColor(TextColor.ANSI.WHITE);
 
         // 绘制背景（天空）
-        tg.setBackgroundColor(TextColor.ANSI.CYAN);
+        tg.setBackgroundColor(level.getSkyColor());
         for (int y = 0; y < GameConfig.HORIZON_OFFSET; y++) {
             tg.drawLine(0, y, width - 1, y, ' ');
         }
@@ -132,13 +133,13 @@ public class RenderEngine {
         tg.setBackgroundColor(TextColor.ANSI.BLACK);
 
         // 绘制道路
-        drawRoad(tg, width, height, distance);
+        drawRoad(tg, width, height, distance, level);
 
         // 绘制障碍物
         for (Obstacle obstacle : obstacles) {
             int obstacleRow = Math.max(0, Math.min(height - 2, obstacle.getY()));
             int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
-            drawObstacle(tg, laneX, obstacleRow, obstacle.getType());
+            drawObstacle(tg, laneX, obstacleRow, obstacle.getType(), level);
         }
 
         // 绘制道具
@@ -314,12 +315,12 @@ public class RenderEngine {
     /**
      * 绘制道路
      */
-    private void drawRoad(TextGraphics tg, int width, int height, int distance) {
+    private void drawRoad(TextGraphics tg, int width, int height, int distance, Level level) {
         // 地平线
         int horizonY = GameConfig.HORIZON_OFFSET;
 
-        // 绘制天空（使用蓝色或青色背景）
-        tg.setBackgroundColor(TextColor.ANSI.CYAN);
+        // 绘制天空
+        tg.setBackgroundColor(level.getSkyColor());
         for (int x = 0; x < width; x++) {
             tg.putString(x, horizonY, " "); // Cloud or empty sky
         }
@@ -333,7 +334,7 @@ public class RenderEngine {
             int clampedRight = Math.max(clampedLeft + 1, Math.min(width - 1, roadRight));
 
             // 绘制草地（道路两侧）
-            tg.setBackgroundColor(TextColor.ANSI.GREEN);
+            tg.setBackgroundColor(level.getGrassColor());
             if (clampedLeft > 0) {
                 tg.drawLine(0, y, clampedLeft - 1, y, ' ');
             }
@@ -358,7 +359,7 @@ public class RenderEngine {
             }
 
             // 地面纹理
-            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT); // 深灰色
+            tg.setForegroundColor(level.getRoadColor());
             if ((y + distance) % 6 < 3) {
                 for (int fillX = clampedLeft + 1; fillX < clampedRight; fillX += 2) {
                     tg.putString(fillX, y, ".");
@@ -371,32 +372,74 @@ public class RenderEngine {
     /**
      * 绘制障碍物
      */
-    private void drawObstacle(TextGraphics tg, int x, int y, int type) {
+    private void drawObstacle(TextGraphics tg, int x, int y, int type, Level level) {
         if (type == 0) {
-            // 障碍物类型1：石头（低障碍，需要跳跃）
-            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT); // Gray rock
-            String[] rock = {
-                    "   ▄   ",
-                    "  ███  ",
-                    " █████ "
-            };
-            for (int i = 0; i < rock.length; i++) {
+            // 障碍物类型1：低障碍
+            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT);
+            String[] sprite;
+            if (level.getObstacleStyle() == Level.ObstacleStyle.DESERT) {
+                // 仙人掌
+                sprite = new String[] {
+                        "   ̦   ",
+                        " ψΨψ ",
+                        "  |  "
+                };
+                tg.setForegroundColor(TextColor.ANSI.GREEN);
+            } else if (level.getObstacleStyle() == Level.ObstacleStyle.CYBERPUNK) {
+                // 赛博路障
+                sprite = new String[] {
+                        " ╱ ╲ ",
+                        " |=| ",
+                        " ╲_╱ "
+                };
+                tg.setForegroundColor(TextColor.ANSI.BLUE);
+            } else {
+                // 默认：石头
+                sprite = new String[] {
+                        "   ▄   ",
+                        "  ███  ",
+                        " █████ "
+                };
+            }
+
+            for (int i = 0; i < sprite.length; i++) {
                 if (y + i >= 0) {
-                    tg.putString(x - 3, y + i, rock[i]);
+                    tg.putString(x - 3, y + i, sprite[i]);
                 }
             }
             tg.setForegroundColor(TextColor.ANSI.WHITE);
         } else {
-            // 障碍物类型2：无人机/悬挂物（高障碍，需要滑铲）
-            tg.setForegroundColor(TextColor.ANSI.RED); // Red danger
-            String[] highObstacle = {
-                    "▀▀▀▀▀▀▀",
-                    " \\ | / ",
-                    "  [o]  "
-            };
-            for (int i = 0; i < highObstacle.length; i++) {
+            // 障碍物类型2：高障碍
+            tg.setForegroundColor(TextColor.ANSI.RED);
+            String[] sprite;
+
+            if (level.getObstacleStyle() == Level.ObstacleStyle.DESERT) {
+                // 秃鹫
+                sprite = new String[] {
+                        " ^o^ ",
+                        " / \\ ",
+                        " v v "
+                };
+            } else if (level.getObstacleStyle() == Level.ObstacleStyle.CYBERPUNK) {
+                // 无人机 scan
+                sprite = new String[] {
+                        " <O> ",
+                        " /|\\ ",
+                        "  v  "
+                };
+                tg.setForegroundColor(TextColor.ANSI.CYAN);
+            } else {
+                // 默认：普通无人机
+                sprite = new String[] {
+                        "▀▀▀▀▀▀▀",
+                        " \\ | / ",
+                        "  [o]  "
+                };
+            }
+
+            for (int i = 0; i < sprite.length; i++) {
                 if (y + i >= 0) {
-                    tg.putString(x - 3, y + i, highObstacle[i]);
+                    tg.putString(x - 3, y + i, sprite[i]);
                 }
             }
             tg.setForegroundColor(TextColor.ANSI.WHITE);
