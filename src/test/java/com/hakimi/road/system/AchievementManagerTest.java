@@ -22,12 +22,11 @@ class AchievementManagerTest {
         instance.setAccessible(true);
         instance.set(null, null);
 
-        // Mock file path if possible, or just let it use default relative path for now
-        // Ideally we should inject the file path or use a temporary file, but for this
-        // existing code
-        // we might need to rely on integration style testing or modify the class to
-        // accept a path.
-        // For now, we will test the logic in memory.
+        // Initialize and set temp file
+        AchievementManager manager = AchievementManager.getInstance();
+        File tempFile = tempDir.resolve("test_achievements.json").toFile();
+        // Use package-private setter created for testing
+        manager.setAchievementsFile(tempFile.getAbsolutePath());
     }
 
     @Test

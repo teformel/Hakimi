@@ -23,7 +23,7 @@ public class AchievementManager {
     private Set<String> unlockedAchievements;
     private NotificationSystem notificationSystem;
     private final ObjectMapper objectMapper;
-    private static final String ACHIEVEMENTS_FILE = "data/achievements.json";
+    private String achievementsFile = "data/achievements.json";
 
     private AchievementManager() {
         unlockedAchievements = new HashSet<>();
@@ -68,12 +68,12 @@ public class AchievementManager {
      */
     private void saveAchievements() {
         try {
-            File file = new File(ACHIEVEMENTS_FILE);
+            File file = new File(achievementsFile);
             if (!file.getParentFile().exists()) {
                 file.getParentFile().mkdirs();
             }
             objectMapper.writeValue(file, unlockedAchievements);
-            logger.debug("Achievements saved to {}", ACHIEVEMENTS_FILE);
+            logger.debug("Achievements saved to {}", achievementsFile);
         } catch (IOException e) {
             logger.error("Failed to save achievements", e);
         }
@@ -83,8 +83,9 @@ public class AchievementManager {
      * 加载成就状态
      */
     public void loadAchievements() {
+        unlockedAchievements = new HashSet<>(); // Reset state
         try {
-            File file = new File(ACHIEVEMENTS_FILE);
+            File file = new File(achievementsFile);
             if (file.exists()) {
                 unlockedAchievements = objectMapper.readValue(file, new TypeReference<Set<String>>() {
                 });
@@ -122,5 +123,13 @@ public class AchievementManager {
         if (changed) {
             saveAchievements();
         }
+    }
+
+    /**
+     * Set the achievements file path (For Testing Only)
+     */
+    void setAchievementsFile(String filePath) {
+        this.achievementsFile = filePath;
+        loadAchievements(); // Reload from new file
     }
 }

@@ -169,7 +169,6 @@ public class SaveManager {
                 obs.y = Integer.parseInt(props.getProperty("obstacle." + i + ".y", "0"));
                 obs.type = Integer.parseInt(props.getProperty("obstacle." + i + ".type", "0"));
                 saveData.obstacles.add(obs);
-                saveData.obstacles.add(obs);
             }
 
             // 加载道具
