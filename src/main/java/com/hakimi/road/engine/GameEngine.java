@@ -43,6 +43,7 @@ public class GameEngine {
     private static final int CHASER_VISIBLE_DURATION = 40;
     private boolean caughtByChaser;
     private boolean chaserAwakened;
+    private int tickCounter;
 
     public enum GameState {
         MENU, PLAYING, GAME_OVER, PAUSED, SETTINGS, SAVE_MENU, LOAD_MENU
@@ -66,6 +67,7 @@ public class GameEngine {
         this.chaserVisibleTimer = 0;
         this.chaserAwakened = false;
         this.caughtByChaser = false;
+        this.tickCounter = 0;
         this.gameState = GameState.MENU;
 
         // 初始化通知系统和成就管理器
@@ -85,8 +87,14 @@ public class GameEngine {
             return;
         }
 
-        // 更新玩家状态
+        // 更新玩家状态 (每一帧都更新，保证动画流畅)
         player.update();
+
+        // 逻辑更新 (每两帧更新一次，保持原有游戏速度平衡)
+        tickCounter++;
+        if (tickCounter % 2 != 0) {
+            return;
+        }
 
         // 更新分数和距离
         scoreSystem.update(gameSpeed);

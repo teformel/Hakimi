@@ -396,7 +396,27 @@ public class RenderEngine {
             boolean isRunning, int animationSeed, float depthFactor) {
         String[] hakimi;
 
-        if (isRunning) {
+        if (player.isJumping()) {
+            // 跳跃状态
+            hakimi = new String[] {
+                    "   /\\_/\\   ",
+                    "  ( > < )  ",
+                    "   \\ ^ /   ",
+                    "  /|===|\\  ",
+                    " /_|   |_\\ ",
+                    "   /___\\   "
+            };
+        } else if (player.isSliding()) {
+            // 滑铲状态
+            hakimi = new String[] {
+                    "           ",
+                    "           ",
+                    "   /\\_/\\   ",
+                    "  ( - - )  ",
+                    " /|=====|\\ ",
+                    "/_|_____|_\\"
+            };
+        } else if (isRunning) {
             String[][] runningFrames = new String[][] {
                     {
                             "   /\\_/\\   ",
@@ -412,7 +432,23 @@ public class RenderEngine {
                             "   \\ ^ /   ",
                             "  /|===|\\  ",
                             " /_|   |_\\ ",
+                            "  //   \\\\  "
+                    },
+                    {
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
                             "  /     \\  "
+                    },
+                    {
+                            "   /\\_/\\   ",
+                            "  ( o o )  ",
+                            "   \\ ^ /   ",
+                            "  /|===|\\  ",
+                            " /_|   |_\\ ",
+                            " //     \\\\ "
                     }
             };
             int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);

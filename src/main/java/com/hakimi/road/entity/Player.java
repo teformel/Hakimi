@@ -52,7 +52,7 @@ public class Player {
     public void jump() {
         if (state == PlayerState.NORMAL) {
             state = PlayerState.JUMPING;
-            stateTimer = 10; // 跳跃持续10帧
+            stateTimer = GameConfig.JUMP_DURATION; // 跳跃持续20帧
             verticalOffset = 0; // 重置垂直偏移
             logger.debug("玩家跳跃");
         }
@@ -64,7 +64,8 @@ public class Player {
     public void slide() {
         if (state == PlayerState.NORMAL) {
             state = PlayerState.SLIDING;
-            stateTimer = 10; // 滑铲持续10帧
+            state = PlayerState.SLIDING;
+            stateTimer = GameConfig.SLIDE_DURATION; // 滑铲持续20帧
             logger.debug("玩家滑铲");
         }
     }
@@ -77,10 +78,10 @@ public class Player {
             stateTimer--;
             // 更新垂直偏移量（用于跳跃）
             if (state == PlayerState.JUMPING) {
-                int jumpProgress = 10 - stateTimer; // 0到10
+                int jumpProgress = GameConfig.JUMP_DURATION - stateTimer;
                 // 抛物线公式：h = maxHeight * 4 * (t/T) * (1 - t/T)
                 // 使用更平滑的抛物线，最大跳跃高度增加到8行，让跳跃效果更明显
-                float normalizedProgress = jumpProgress / 10.0f; // 0.0到1.0
+                float normalizedProgress = jumpProgress / (float) GameConfig.JUMP_DURATION; // 0.0到1.0
                 verticalOffset = (int) (8.0f * 4.0f * normalizedProgress * (1.0f - normalizedProgress)); // 最大跳跃8行
             } else {
                 verticalOffset = 0;
@@ -116,7 +117,7 @@ public class Player {
      */
     public float getJumpProgress() {
         if (state == PlayerState.JUMPING) {
-            return (10.0f - stateTimer) / 10.0f;
+            return (GameConfig.JUMP_DURATION - stateTimer) / (float) GameConfig.JUMP_DURATION;
         }
         return 0.0f;
     }

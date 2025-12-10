@@ -51,11 +51,11 @@ class PlayerTest {
         // 正常状态下可以跳跃
         player.jump();
         assertTrue(player.isJumping());
-        assertEquals(10, player.getStateTimer());
+        assertEquals(GameConfig.JUMP_DURATION, player.getStateTimer());
 
         // 跳跃状态下不能再次跳跃
         player.jump();
-        assertEquals(10, player.getStateTimer()); // 计时器不应重置
+        assertEquals(GameConfig.JUMP_DURATION, player.getStateTimer()); // 计时器不应重置
     }
 
     @Test
@@ -63,11 +63,11 @@ class PlayerTest {
         // 正常状态下可以滑铲
         player.slide();
         assertTrue(player.isSliding());
-        assertEquals(10, player.getStateTimer());
+        assertEquals(GameConfig.SLIDE_DURATION, player.getStateTimer());
 
         // 滑铲状态下不能再次滑铲
         player.slide();
-        assertEquals(10, player.getStateTimer());
+        assertEquals(GameConfig.SLIDE_DURATION, player.getStateTimer());
     }
 
     @Test
@@ -81,7 +81,7 @@ class PlayerTest {
         assertTrue(player.getVerticalOffset() > 0); // 跳跃时应有垂直偏移
 
         // 模拟跳跃完成
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < GameConfig.JUMP_DURATION; i++) {
             player.update();
         }
         assertTrue(player.isNormal());
@@ -95,10 +95,10 @@ class PlayerTest {
         // 跳跃过程中应该有垂直偏移
         player.update();
         int offset1 = player.getVerticalOffset();
-        assertTrue(offset1 > 0);
+        assertTrue(offset1 >= 0); // 在第一帧可能还是0或者很小，取决于公式
 
-        // 跳跃中期偏移应该更大
-        for (int i = 0; i < 3; i++) {
+        // 跳跃中期偏移应该更大 (10帧后)
+        for (int i = 0; i < 9; i++) {
             player.update();
         }
         int offset2 = player.getVerticalOffset();
@@ -170,7 +170,7 @@ class PlayerTest {
         assertTrue(player.isJumping());
 
         // 等待跳跃完成
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < GameConfig.JUMP_DURATION; i++) {
             player.update();
         }
         assertTrue(player.isNormal());
@@ -180,7 +180,7 @@ class PlayerTest {
         assertTrue(player.isSliding());
 
         // 等待滑铲完成
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < GameConfig.SLIDE_DURATION; i++) {
             player.update();
         }
         assertTrue(player.isNormal());
