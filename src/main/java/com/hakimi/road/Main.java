@@ -250,6 +250,7 @@ public class Main {
                         gameEngine.getChaser(),
                         gameEngine.getObstacles(),
                         gameEngine.getItems(),
+                        gameEngine.getSceneryList(),
                         gameEngine.isChaserVisible(),
                         gameEngine.getScoreSystem().getScore(),
                         gameEngine.getScoreSystem().getDistance(),

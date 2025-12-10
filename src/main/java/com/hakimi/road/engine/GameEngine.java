@@ -7,6 +7,7 @@ import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
+import com.hakimi.road.entity.Scenery;
 import com.hakimi.road.system.Achievement;
 import com.hakimi.road.system.AchievementManager;
 import com.hakimi.road.system.CollisionSystem;
@@ -38,6 +39,7 @@ public class GameEngine {
     private Chaser chaser;
     private List<Obstacle> obstacles;
     private List<Item> items;
+    private List<Scenery> sceneryList;
     private int gameSpeed;
     private int hitCount;
     private int chaserVisibleTimer;
@@ -62,6 +64,7 @@ public class GameEngine {
         this.player = new Player();
         this.obstacles = new ArrayList<>();
         this.items = new ArrayList<>();
+        this.sceneryList = new ArrayList<>();
         this.chaser = new Chaser();
         this.gameSpeed = GameConfig.BASE_GAME_SPEED;
         this.hitCount = 0;
@@ -135,6 +138,12 @@ public class GameEngine {
             }
         }
 
+        // 生成路边风景 (15% 概率)
+        if (random.nextInt(100) < 15) {
+            int side = random.nextBoolean() ? -1 : 1;
+            sceneryList.add(new Scenery(side, 0, Scenery.SceneryType.TREE));
+        }
+
         // 移动障碍物
         TerminalSize size = screen.getTerminalSize();
         List<Obstacle> obstaclesToRemove = new ArrayList<>();
@@ -156,6 +165,16 @@ public class GameEngine {
             }
         }
         items.removeAll(itemsToRemove);
+
+        // 移动风景
+        List<Scenery> sceneryToRemove = new ArrayList<>();
+        for (Scenery scenery : sceneryList) {
+            scenery.move(gameSpeed);
+            if (scenery.isOutOfScreen(size.getRows())) {
+                sceneryToRemove.add(scenery);
+            }
+        }
+        sceneryList.removeAll(sceneryToRemove);
 
         // 更新追逐者
         int playerY = player.calculateY(size.getRows());
@@ -291,6 +310,10 @@ public class GameEngine {
 
     public List<Item> getItems() {
         return items;
+    }
+
+    public List<Scenery> getSceneryList() {
+        return sceneryList;
     }
 
     public ScoreSystem getScoreSystem() {

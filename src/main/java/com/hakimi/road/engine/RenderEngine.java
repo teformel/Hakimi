@@ -7,6 +7,7 @@ import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
+import com.hakimi.road.entity.Scenery;
 import com.hakimi.road.util.GameConfig;
 import com.hakimi.road.util.SaveManager;
 import com.hakimi.road.util.SettingsManager;
@@ -113,6 +114,7 @@ public class RenderEngine {
      * 渲染游戏界面
      */
     public void renderGame(Player player, Chaser chaser, List<Obstacle> obstacles, List<Item> items,
+            List<Scenery> sceneryList,
             boolean showChaser, int score, int distance, int gameSpeed,
             int width, int height) throws IOException {
         screen.clear();
@@ -144,6 +146,11 @@ public class RenderEngine {
             int itemRow = Math.max(0, Math.min(height - 2, item.getY()));
             int laneX = GameConfig.calculateLaneX(width, height, item.getLane(), itemRow);
             drawItem(tg, laneX, itemRow, item.getType());
+        }
+
+        // 绘制风景
+        for (Scenery scenery : sceneryList) {
+            drawScenery(tg, width, height, scenery, distance);
         }
 
         int playerY = player.calculateY(height);
@@ -419,6 +426,48 @@ public class RenderEngine {
             }
             tg.setForegroundColor(TextColor.ANSI.WHITE);
         }
+    }
+
+    /**
+     * 绘制风景
+     */
+    private void drawScenery(TextGraphics tg, int width, int height, Scenery scenery, int distance) {
+        int row = Math.max(0, Math.min(height - 1, scenery.getY()));
+        if (row < GameConfig.HORIZON_OFFSET + 1)
+            return; // 过于远，不绘制
+
+        int roadLeft = GameConfig.getRoadLeftAtRow(width, height, row);
+        int roadWidth = GameConfig.getRoadWidthAtRow(height, row);
+
+        int x;
+        if (scenery.getSide() == -1) {
+            // 左侧，距离道路一定距离
+            x = roadLeft - 5;
+        } else {
+            // 右侧
+            x = roadLeft + roadWidth + 5;
+        }
+
+        // 确保在屏幕内
+        x = Math.max(0, Math.min(width - 1, x));
+
+        // 简单透视大小
+        boolean isFar = row < height / 2;
+
+        tg.setForegroundColor(TextColor.ANSI.GREEN);
+        if (isFar) {
+            // 远处小树
+            tg.putString(x, row, "^");
+        } else {
+            // 近处大树
+            if (row + 1 < height) {
+                tg.putString(x, row, " ^ ");
+                tg.putString(x, row + 1, "/|\\");
+            } else {
+                tg.putString(x, row, "^");
+            }
+        }
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
     }
 
     /**
