@@ -322,27 +322,29 @@ public class RenderEngine {
      */
     private void drawObstacle(TextGraphics tg, int x, int y, int type) {
         if (type == 0) {
-            // 障碍物类型1：石头（低障碍）
+            // 障碍物类型1：石头（低障碍，需要跳跃）
+            // 设计：底部厚重，看起来像地上的障碍
             String[] rock = {
-                    " ███ ",
-                    "█████",
-                    " ███ "
+                    "   ▄   ",
+                    "  ███  ",
+                    " █████ "
             };
             for (int i = 0; i < rock.length; i++) {
                 if (y + i >= 0) {
-                    tg.putString(x - 2, y + i, rock[i]);
+                    tg.putString(x - 3, y + i, rock[i]);
                 }
             }
         } else {
-            // 障碍物类型2：栅栏（高障碍）
-            String[] fence = {
-                    " ▄▄▄ ",
-                    " ███ ",
-                    " ▀▀▀ "
+            // 障碍物类型2：无人机/悬挂物（高障碍，需要滑铲）
+            // 设计：顶部有结构，底部悬空，暗示可以钻过去
+            String[] highObstacle = {
+                    "▀▀▀▀▀▀▀",
+                    " \\ | / ",
+                    "  [o]  "
             };
-            for (int i = 0; i < fence.length; i++) {
+            for (int i = 0; i < highObstacle.length; i++) {
                 if (y + i >= 0) {
-                    tg.putString(x - 2, y + i, fence[i]);
+                    tg.putString(x - 3, y + i, highObstacle[i]);
                 }
             }
         }
