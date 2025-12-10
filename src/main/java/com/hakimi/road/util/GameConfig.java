@@ -59,7 +59,9 @@ public class GameConfig {
     public static final int SCORE_PER_OBSTACLE = 5; // 成功躲避障碍物得分
 
     // 游戏循环配置
+    // 游戏循环配置
     public static final int GAME_LOOP_DELAY_MS = 50; // 游戏循环延迟（毫秒），20fps
+    public static final int FPS = 1000 / GAME_LOOP_DELAY_MS; // 20 FPS
 
     // 动作持续时间
     public static final int JUMP_DURATION = 20; // 跳跃持续20帧 (1秒)

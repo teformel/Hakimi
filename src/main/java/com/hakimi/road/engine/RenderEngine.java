@@ -169,9 +169,23 @@ public class RenderEngine {
         tg.putString(hudX, 3, "速度: " + gameSpeed);
         tg.putString(hudX, 4, "小鱼干: " + player.getDriedFishCount());
 
+        // 绘制血量
+        tg.putString(hudX, 5, "血量: ");
+        tg.setForegroundColor(TextColor.ANSI.RED);
+        StringBuilder hearts = new StringBuilder();
+        for (int i = 0; i < player.getMaxHealth(); i++) {
+            if (i < player.getHealth()) {
+                hearts.append("❤");
+            } else {
+                hearts.append("♡");
+            }
+        }
+        tg.putString(hudX + 6, 5, hearts.toString());
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
+
         if (player.hasHagenAbility()) {
             tg.setForegroundColor(TextColor.ANSI.YELLOW);
-            tg.putString(hudX, 6, "★ 哈根之力 ★");
+            tg.putString(hudX, 7, "★ 哈根之力 ★");
             tg.setForegroundColor(TextColor.ANSI.WHITE);
         }
 

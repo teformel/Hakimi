@@ -184,23 +184,25 @@ public class GameEngine {
         }
 
         // 障碍物碰撞检测
-        Obstacle hitObstacle = collisionSystem.getCollidedObstacle(player, obstacles, size.getRows());
-        if (hitObstacle != null) {
-            if (player.hasHagenAbility()) {
-                // 触发哈根能力
-                player.consumeHagen();
-                obstacles.remove(hitObstacle); // 移除障碍物，表示被哈走了
+        if (!player.isInvincible()) {
+            Obstacle hitObstacle = collisionSystem.getCollidedObstacle(player, obstacles, size.getRows());
+            if (hitObstacle != null) {
+                if (player.hasHagenAbility()) {
+                    // 触发哈根能力
+                    player.consumeHagen();
+                    obstacles.remove(hitObstacle); // 移除障碍物，表示被哈走了
 
-                // 吓退追逐者
-                if (chaserAwakened) {
-                    chaserAwakened = false;
-                    chaserVisibleTimer = 0;
+                    // 吓退追逐者
+                    if (chaserAwakened) {
+                        chaserAwakened = false;
+                        chaserVisibleTimer = 0;
+                    }
+
+                    notificationSystem.addNotification("哈根!!!!!!", "吓退了敌人!", "⚡", 2000,
+                            com.googlecode.lanterna.TextColor.ANSI.RED);
+                } else {
+                    handlePlayerHit();
                 }
-
-                notificationSystem.addNotification("哈根!!!!!!", "吓退了敌人!", "⚡", 2000,
-                        com.googlecode.lanterna.TextColor.ANSI.RED);
-            } else {
-                handlePlayerHit();
             }
         }
     }
@@ -356,6 +358,18 @@ public class GameEngine {
         saveData.playerStateTimer = player.getStateTimer();
         saveData.driedFishCount = player.getDriedFishCount();
         saveData.hasHagenAbility = player.hasHagenAbility();
+        // Saving health implicitly by reconstructing or we should add health to
+        // SaveManager?
+        // For now, let's keep it simple. If we want to save health, we need to update
+        // SaveManager.
+        // But since this is a new feature, maybe we should just reset health on load?
+        // Actually, let's update SaveManager later if needed. For now, we assume
+        // hitCount tracks lost health.
+        // Wait, I should probably update SaveManager to support health if I want it
+        // persisted perfectly.
+        // But wait, hitCount is saved. I can reconstruct health from hitCount?
+        // Yes, hitCount is saved. player.health = maxHealth - hitCount.
+        // I will add logic in loadGame to sync health.
 
         // 保存追逐者数据
         saveData.chaserY = chaser.getY();
@@ -422,7 +436,12 @@ public class GameEngine {
 
         // 恢复游戏状态
         gameSpeed = saveData.gameSpeed;
+        gameSpeed = saveData.gameSpeed;
         hitCount = saveData.hitCount;
+        // Sync health with hitCount
+        player.setHealth(player.getMaxHealth() - hitCount);
+        if (player.getHealth() < 0)
+            player.setHealth(0);
         chaserVisibleTimer = saveData.chaserVisibleTimer;
         chaserAwakened = saveData.chaserAwakened;
         caughtByChaser = saveData.caughtByChaser;
@@ -465,18 +484,20 @@ public class GameEngine {
     }
 
     private void handlePlayerHit() {
-        hitCount++;
+        player.damage();
+        hitCount = player.getMaxHealth() - player.getHealth();
+
         chaserAwakened = true;
         chaserVisibleTimer = CHASER_VISIBLE_DURATION;
 
         // 解锁受伤成就
         AchievementManager.getInstance().unlockAchievement(Achievement.OUCH);
 
-        logger.warn("玩家受击: 次数={}/3", hitCount);
-        if (hitCount >= 3) {
+        logger.warn("玩家受击: 剩余血量={}", player.getHealth());
+        if (player.getHealth() <= 0) {
             caughtByChaser = true;
             gameState = GameState.GAME_OVER;
-            logger.info("游戏结束: 被追逐者捕获");
+            logger.info("游戏结束: 血量耗尽");
         }
     }
 }

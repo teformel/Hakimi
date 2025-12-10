@@ -18,6 +18,9 @@ public class Player {
     private int verticalOffset; // 垂直偏移量（用于跳跃，正值表示向上）
     private int driedFishCount; // 小鱼干数量
     private boolean hasHagenAbility; // 是否拥有哈根能力
+    private int health; // 当前血量
+    private int maxHealth; // 最大血量
+    private int invincibilityTimer; // 无敌时间计时器
 
     public enum PlayerState {
         NORMAL, // 正常状态
@@ -32,6 +35,9 @@ public class Player {
         this.verticalOffset = 0;
         this.driedFishCount = 0;
         this.hasHagenAbility = false;
+        this.maxHealth = 3;
+        this.health = this.maxHealth;
+        this.invincibilityTimer = 0;
         logger.debug("Player创建: 初始车道={}", lane);
     }
 
@@ -91,6 +97,11 @@ public class Player {
                 state = PlayerState.NORMAL;
                 verticalOffset = 0;
             }
+        }
+
+        // 更新无敌时间
+        if (invincibilityTimer > 0) {
+            invincibilityTimer--;
         }
     }
 
@@ -209,5 +220,38 @@ public class Player {
             this.hasHagenAbility = false;
             logger.info("玩家使用了哈根能力！");
         }
+    }
+
+    // Health Methods
+    public int getHealth() {
+        return health;
+    }
+
+    public void setHealth(int health) {
+        this.health = health;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
+    public void damage() {
+        if (invincibilityTimer == 0 && health > 0) {
+            health--;
+            invincibilityTimer = GameConfig.FPS * 2; // 2秒无敌时间 (假设FPS为30-60，这里给一个大致值，后续调整)
+            logger.info("玩家受伤: 剩余血量={}", health);
+        }
+    }
+
+    public boolean isInvincible() {
+        return invincibilityTimer > 0;
+    }
+
+    public int getInvincibilityTimer() {
+        return invincibilityTimer;
+    }
+
+    public void setInvincibilityTimer(int timer) {
+        this.invincibilityTimer = timer;
     }
 }
