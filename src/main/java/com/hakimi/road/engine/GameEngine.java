@@ -208,7 +208,7 @@ public class GameEngine {
                 scoreSystem.addScore(100);
             } else if (collectedItem.getType() == Item.ItemType.HAGEN_ABILITY) {
                 player.setHagenAbility(true);
-                notificationSystem.addNotification("获得哈根之力!", "被人抓住时自动触发", "★", 3000,
+                notificationSystem.addNotification("此猫已有哈根", "被人抓住时自动哈气", "★", 3000,
                         com.googlecode.lanterna.TextColor.ANSI.YELLOW);
                 playCollectSound();
                 notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.YELLOW, 5);
@@ -232,7 +232,7 @@ public class GameEngine {
                         chaserVisibleTimer = 0;
                     }
 
-                    notificationSystem.addNotification("哈根!!!!!!", "吓退了敌人!", "⚡", 2000,
+                    notificationSystem.addNotification("哈!!!!!!", "吓退了敌人!", "⚡", 2000,
                             com.googlecode.lanterna.TextColor.ANSI.RED);
                     playHitSound();
                     notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.YELLOW, 3);
