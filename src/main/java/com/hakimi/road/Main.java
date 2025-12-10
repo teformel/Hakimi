@@ -86,7 +86,6 @@ public class Main {
         // 检测操作系统
         String osName = System.getProperty("os.name", "").toLowerCase();
         boolean isWindows = osName.contains("windows");
-        boolean isLinux = osName.contains("linux") || osName.contains("unix");
 
         // 决定使用哪种终端
         boolean useSwing = false;
