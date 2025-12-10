@@ -137,6 +137,19 @@ mvn clean
 - 每个类和方法添加Javadoc注释
 - 保持代码模块化和可读性
 
+### 提交规范配置
+
+1. **全局安装 commitizen**
+   ```bash
+   npm install -g commitizen
+   ```
+
+2. **项目初始化**
+   进入项目文件夹，运行如下命令：
+   ```bash
+   commitizen init cz-conventional-changelog --save --save-exact
+   ```
+
 ## 🎨 技术架构
 
 ### 核心技术栈
