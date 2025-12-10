@@ -2,6 +2,7 @@ package com.hakimi.road.engine;
 
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.screen.Screen;
+import com.googlecode.lanterna.screen.TerminalScreen;
 import com.hakimi.road.entity.Chaser;
 import com.hakimi.road.entity.Item;
 import com.hakimi.road.entity.Obstacle;
@@ -180,6 +181,10 @@ public class GameEngine {
                 player.setHagenAbility(true);
                 notificationSystem.addNotification("获得哈根之力!", "被人抓住时自动触发", "★", 3000,
                         com.googlecode.lanterna.TextColor.ANSI.YELLOW);
+                playCollectSound();
+                notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.YELLOW, 5);
+            } else {
+                playCollectSound();
             }
         }
 
@@ -200,6 +205,8 @@ public class GameEngine {
 
                     notificationSystem.addNotification("哈根!!!!!!", "吓退了敌人!", "⚡", 2000,
                             com.googlecode.lanterna.TextColor.ANSI.RED);
+                    playHitSound();
+                    notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.YELLOW, 3);
                 } else {
                     handlePlayerHit();
                 }
@@ -490,6 +497,9 @@ public class GameEngine {
         chaserAwakened = true;
         chaserVisibleTimer = CHASER_VISIBLE_DURATION;
 
+        playHitSound();
+        notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.RED, 5);
+
         // 解锁受伤成就
         AchievementManager.getInstance().unlockAchievement(Achievement.OUCH);
 
@@ -498,6 +508,29 @@ public class GameEngine {
             caughtByChaser = true;
             gameState = GameState.GAME_OVER;
             logger.info("游戏结束: 血量耗尽");
+        }
+    }
+
+    private void playHitSound() {
+        try {
+            if (screen instanceof TerminalScreen) {
+                ((TerminalScreen) screen).getTerminal().bell();
+            }
+        } catch (IOException e) {
+            // ignore
+        }
+    }
+
+    private void playCollectSound() {
+        // Collect sound can be subtle, for now just a bell or maybe nothing if bell is
+        // too annoying
+        // Let's use bell for now
+        try {
+            if (screen instanceof TerminalScreen) {
+                ((TerminalScreen) screen).getTerminal().bell();
+            }
+        } catch (IOException e) {
+            // ignore
         }
     }
 }

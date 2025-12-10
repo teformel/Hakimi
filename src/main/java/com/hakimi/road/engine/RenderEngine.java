@@ -119,6 +119,14 @@ public class RenderEngine {
         TextGraphics tg = screen.newTextGraphics();
 
         tg.setForegroundColor(TextColor.ANSI.WHITE);
+
+        // 绘制背景（天空）
+        tg.setBackgroundColor(TextColor.ANSI.CYAN);
+        for (int y = 0; y < GameConfig.HORIZON_OFFSET; y++) {
+            tg.drawLine(0, y, width - 1, y, ' ');
+        }
+
+        // 恢复默认背景
         tg.setBackgroundColor(TextColor.ANSI.BLACK);
 
         // 绘制道路
@@ -199,6 +207,7 @@ public class RenderEngine {
         // 渲染通知
         if (notificationSystem != null) {
             notificationSystem.render(tg, width, height);
+            renderScreenFlash(tg, width, height);
         }
 
         screen.refresh();
@@ -295,12 +304,19 @@ public class RenderEngine {
     /**
      * 绘制道路
      */
+    /**
+     * 绘制道路
+     */
     private void drawRoad(TextGraphics tg, int width, int height, int distance) {
         // 地平线
         int horizonY = GameConfig.HORIZON_OFFSET;
+
+        // 绘制天空（使用蓝色或青色背景）
+        tg.setBackgroundColor(TextColor.ANSI.CYAN);
         for (int x = 0; x < width; x++) {
-            tg.putString(x, horizonY, "¯");
+            tg.putString(x, horizonY, " "); // Cloud or empty sky
         }
+        tg.setBackgroundColor(TextColor.ANSI.BLACK);
 
         for (int y = horizonY + 1; y < height; y++) {
             int roadWidth = GameConfig.getRoadWidthAtRow(height, y);
@@ -309,6 +325,18 @@ public class RenderEngine {
             int clampedLeft = Math.max(0, roadLeft);
             int clampedRight = Math.max(clampedLeft + 1, Math.min(width - 1, roadRight));
 
+            // 绘制草地（道路两侧）
+            tg.setBackgroundColor(TextColor.ANSI.GREEN);
+            if (clampedLeft > 0) {
+                tg.drawLine(0, y, clampedLeft - 1, y, ' ');
+            }
+            if (clampedRight < width - 1) {
+                tg.drawLine(clampedRight + 1, y, width - 1, y, ' ');
+            }
+            tg.setBackgroundColor(TextColor.ANSI.BLACK);
+
+            // 绘制道路边界
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
             tg.putString(clampedLeft, y, "/");
             tg.putString(clampedRight, y, "\\");
 
@@ -323,11 +351,13 @@ public class RenderEngine {
             }
 
             // 地面纹理
+            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT); // 深灰色
             if ((y + distance) % 6 < 3) {
                 for (int fillX = clampedLeft + 1; fillX < clampedRight; fillX += 2) {
                     tg.putString(fillX, y, ".");
                 }
             }
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
         }
     }
 
@@ -337,7 +367,7 @@ public class RenderEngine {
     private void drawObstacle(TextGraphics tg, int x, int y, int type) {
         if (type == 0) {
             // 障碍物类型1：石头（低障碍，需要跳跃）
-            // 设计：底部厚重，看起来像地上的障碍
+            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT); // Gray rock
             String[] rock = {
                     "   ▄   ",
                     "  ███  ",
@@ -348,9 +378,10 @@ public class RenderEngine {
                     tg.putString(x - 3, y + i, rock[i]);
                 }
             }
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
         } else {
             // 障碍物类型2：无人机/悬挂物（高障碍，需要滑铲）
-            // 设计：顶部有结构，底部悬空，暗示可以钻过去
+            tg.setForegroundColor(TextColor.ANSI.RED); // Red danger
             String[] highObstacle = {
                     "▀▀▀▀▀▀▀",
                     " \\ | / ",
@@ -361,6 +392,7 @@ public class RenderEngine {
                     tg.putString(x - 3, y + i, highObstacle[i]);
                 }
             }
+            tg.setForegroundColor(TextColor.ANSI.WHITE);
         }
     }
 
@@ -486,29 +518,30 @@ public class RenderEngine {
         float scale = depthFactor;
         // 移除跳跃时的缩放效果，让跳跃看起来更自然（向上跳而不是向前跳）
 
-        // 绘制每一行，根据缩放跳过某些行
-        // x 是车道中心位置，对于每一行，将该行的中心对齐到这个位置
-        int skipLines = scale < 0.7f ? 1 : 0; // 如果太小，跳过一些行
+        // 绘制每一行
+        // 使用黄色绘制哈基米
+        tg.setForegroundColor(TextColor.ANSI.YELLOW);
+
+        int skipLines = scale < 0.7f ? 1 : 0;
         int lineIndex = 0;
         for (int i = 0; i < hakimi.length; i++) {
             if (skipLines > 0 && i % 2 == 1 && scale < 0.7f) {
-                continue; // 跳过某些行以模拟缩小
+                continue;
             }
             int drawY = y + lineIndex;
             if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
                 String line = hakimi[i];
-                // 如果缩放较小，截取中间部分
                 if (scale < 0.8f && line.length() > 5) {
                     int start = (line.length() - 5) / 2;
                     line = line.substring(start, start + 5);
                 }
-                // 将每一行的中心对齐到车道中心位置 x
                 int lineDrawX = x - line.length() / 2;
                 tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - line.length(), lineDrawX)),
                         drawY, line);
             }
             lineIndex++;
         }
+        tg.setForegroundColor(TextColor.ANSI.WHITE);
     }
 
     /**
@@ -585,6 +618,26 @@ public class RenderEngine {
                 tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - sprite[i].length(), x)),
                         drawY, sprite[i]);
             }
+        }
+    }
+
+    /**
+     * 渲染屏幕闪烁效果
+     */
+    private void renderScreenFlash(TextGraphics tg, int width, int height) {
+        if (notificationSystem != null && notificationSystem.getScreenFlashTimer() > 0) {
+            tg.setBackgroundColor(notificationSystem.getScreenFlashColor());
+            // 绘制边框
+            tg.drawLine(0, 0, width - 1, 0, ' ');
+            tg.drawLine(0, height - 1, width - 1, height - 1, ' ');
+            tg.drawLine(0, 0, 0, height - 1, ' ');
+            tg.drawLine(width - 1, 0, width - 1, height - 1, ' ');
+
+            // 简单闪烁：绘制四周边框 (内圈)
+            tg.drawLine(1, 1, width - 2, 1, ' ');
+            tg.drawLine(1, height - 2, width - 2, height - 2, ' ');
+            tg.drawLine(1, 1, 1, height - 2, ' ');
+            tg.drawLine(width - 2, 1, width - 2, height - 2, ' ');
         }
     }
 

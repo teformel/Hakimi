@@ -35,6 +35,10 @@ public class NotificationSystem {
         }
     }
 
+    // 屏幕闪烁效果
+    private TextColor screenFlashColor;
+    private int screenFlashTimer;
+
     private Queue<Notification> notificationQueue;
     private Notification currentNotification;
     private static final long DEFAULT_DURATION = 4000; // 4秒
@@ -42,6 +46,22 @@ public class NotificationSystem {
     public NotificationSystem() {
         this.notificationQueue = new LinkedList<>();
         logger.debug("NotificationSystem初始化");
+    }
+
+    /**
+     * 触发屏幕闪烁
+     */
+    public void triggerScreenFlash(TextColor color, int frames) {
+        this.screenFlashColor = color;
+        this.screenFlashTimer = frames;
+    }
+
+    public TextColor getScreenFlashColor() {
+        return screenFlashColor;
+    }
+
+    public int getScreenFlashTimer() {
+        return screenFlashTimer;
     }
 
     /**
@@ -69,6 +89,10 @@ public class NotificationSystem {
      * 更新通知状态
      */
     public void update() {
+        if (screenFlashTimer > 0) {
+            screenFlashTimer--;
+        }
+
         if (currentNotification == null && !notificationQueue.isEmpty()) {
             currentNotification = notificationQueue.poll();
             currentNotification.startTime = System.currentTimeMillis();
