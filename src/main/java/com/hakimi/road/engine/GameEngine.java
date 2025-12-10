@@ -153,36 +153,38 @@ public class GameEngine {
         }
 
         // 移动障碍物
-        TerminalSize size = screen.getTerminalSize();
-        List<Obstacle> obstaclesToRemove = new ArrayList<>();
-        for (Obstacle obstacle : obstacles) {
+        TerminalSize size = getTerminalSize();
+        java.util.Iterator<Obstacle> obstacleIterator = obstacles.iterator();
+        while (obstacleIterator.hasNext()) {
+            Obstacle obstacle = obstacleIterator.next();
             obstacle.move(gameSpeed);
             if (obstacle.isOutOfScreen(size.getRows())) {
-                obstaclesToRemove.add(obstacle);
+                obstacleIterator.remove();
                 scoreSystem.obstacleAvoided();
             }
         }
-        obstacles.removeAll(obstaclesToRemove);
 
         // 移动道具
-        List<Item> itemsToRemove = new ArrayList<>();
-        for (Item item : items) {
+        // 移动道具
+        java.util.Iterator<Item> itemIterator = items.iterator();
+        while (itemIterator.hasNext()) {
+            Item item = itemIterator.next();
             item.move(gameSpeed);
             if (item.isOutOfScreen(size.getRows())) {
-                itemsToRemove.add(item);
+                itemIterator.remove();
             }
         }
-        items.removeAll(itemsToRemove);
 
         // 移动风景
-        List<Scenery> sceneryToRemove = new ArrayList<>();
-        for (Scenery scenery : sceneryList) {
+        // 移动风景
+        java.util.Iterator<Scenery> sceneryIterator = sceneryList.iterator();
+        while (sceneryIterator.hasNext()) {
+            Scenery scenery = sceneryIterator.next();
             scenery.move(gameSpeed);
             if (scenery.isOutOfScreen(size.getRows())) {
-                sceneryToRemove.add(scenery);
+                sceneryIterator.remove();
             }
         }
-        sceneryList.removeAll(sceneryToRemove);
 
         // 更新追逐者
         int playerY = player.calculateY(size.getRows());
@@ -269,7 +271,7 @@ public class GameEngine {
         chaserAwakened = false;
         caughtByChaser = false;
         gameSpeed = GameConfig.BASE_GAME_SPEED;
-        TerminalSize size = screen.getTerminalSize();
+        TerminalSize size = getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
     }
 
@@ -288,7 +290,7 @@ public class GameEngine {
         chaserAwakened = false;
         caughtByChaser = false;
         gameSpeed = GameConfig.BASE_GAME_SPEED;
-        TerminalSize size = screen.getTerminalSize();
+        TerminalSize size = getTerminalSize();
         chaser.reset(player.calculateY(size.getRows()));
     }
 
@@ -567,5 +569,12 @@ public class GameEngine {
         } catch (IOException e) {
             // ignore
         }
+    }
+
+    private TerminalSize getTerminalSize() {
+        if (screen != null) {
+            return screen.getTerminalSize();
+        }
+        return new TerminalSize(GameConfig.TERMINAL_WIDTH, GameConfig.TERMINAL_HEIGHT);
     }
 }

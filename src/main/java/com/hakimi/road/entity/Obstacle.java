@@ -9,10 +9,10 @@ import org.apache.logging.log4j.Logger;
  * 障碍物实体类
  * 表示游戏中的障碍物
  */
-public class Obstacle {
+public class Obstacle extends GameEntity {
     private static final Logger logger = LogManager.getLogger(Obstacle.class);
     private int lane; // 所在车道
-    private int y; // y坐标
+                      // y is inherited
     private int type; // 障碍物类型 (0=石头, 1=栅栏)
     private ObstacleHeight height; // 障碍物高度类型
 
@@ -23,26 +23,12 @@ public class Obstacle {
     }
 
     public Obstacle(int lane, int y, int type) {
+        super(y);
         this.lane = lane;
-        this.y = y;
         this.type = type;
         // 根据类型设置高度
         this.height = type == 0 ? ObstacleHeight.LOW : ObstacleHeight.HIGH;
         logger.debug("障碍物创建: lane={}, y={}, type={}, height={}", lane, y, type, height);
-    }
-
-    /**
-     * 移动障碍物
-     */
-    public void move(int speed) {
-        this.y += speed;
-    }
-
-    /**
-     * 检查障碍物是否超出屏幕
-     */
-    public boolean isOutOfScreen(int screenHeight) {
-        return y > screenHeight;
     }
 
     /**
@@ -73,14 +59,6 @@ public class Obstacle {
 
     public void setLane(int lane) {
         this.lane = lane;
-    }
-
-    public int getY() {
-        return y;
-    }
-
-    public void setY(int y) {
-        this.y = y;
     }
 
     public int getType() {

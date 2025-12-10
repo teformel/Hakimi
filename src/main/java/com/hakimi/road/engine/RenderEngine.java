@@ -9,7 +9,11 @@ import com.hakimi.road.entity.Obstacle;
 import com.hakimi.road.entity.Player;
 import com.hakimi.road.entity.Scenery;
 import com.hakimi.road.level.Level;
-import com.hakimi.road.util.GameConfig;
+import com.hakimi.road.renderer.EntityRenderer;
+import com.hakimi.road.renderer.HudRenderer;
+import com.hakimi.road.renderer.PlayerRenderer;
+import com.hakimi.road.renderer.RoadRenderer;
+
 import com.hakimi.road.util.SaveManager;
 import com.hakimi.road.util.SettingsManager;
 
@@ -26,8 +30,17 @@ public class RenderEngine {
     private Screen screen;
     private com.hakimi.road.ui.NotificationSystem notificationSystem;
 
+    private final RoadRenderer roadRenderer;
+    private final EntityRenderer entityRenderer;
+    private final PlayerRenderer playerRenderer;
+    private final HudRenderer hudRenderer;
+
     public RenderEngine(Screen screen) {
         this.screen = screen;
+        this.roadRenderer = new RoadRenderer();
+        this.entityRenderer = new EntityRenderer();
+        this.playerRenderer = new PlayerRenderer();
+        this.hudRenderer = new HudRenderer();
     }
 
     public void setNotificationSystem(com.hakimi.road.ui.NotificationSystem notificationSystem) {
@@ -92,7 +105,7 @@ public class RenderEngine {
         // 绘制哈基米（在顶部，左对齐）
         int hakimiX = contentStartX;
         int hakimiY = contentStartY;
-        renderHakimi(tg, hakimiX, hakimiY, false, 0);
+        playerRenderer.renderMenuHakimi(tg, width, height, hakimiX, hakimiY);
 
         // 标题（在哈基米下方，左对齐）
         int titleY = hakimiY + hakimiHeight + 2; // 哈基米高度 + 间距
@@ -123,99 +136,38 @@ public class RenderEngine {
 
         tg.setForegroundColor(TextColor.ANSI.WHITE);
 
-        // 绘制背景（天空）
-        tg.setBackgroundColor(level.getSkyColor());
-        for (int y = 0; y < GameConfig.HORIZON_OFFSET; y++) {
-            tg.drawLine(0, y, width - 1, y, ' ');
-        }
-
-        // 恢复默认背景
-        tg.setBackgroundColor(TextColor.ANSI.BLACK);
-
         // 绘制道路
-        drawRoad(tg, width, height, distance, level);
+        roadRenderer.render(tg, width, height, distance, level);
 
         // 绘制障碍物
         for (Obstacle obstacle : obstacles) {
-            int obstacleRow = Math.max(0, Math.min(height - 2, obstacle.getY()));
-            int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
-            drawObstacle(tg, laneX, obstacleRow, obstacle.getType(), level);
+            entityRenderer.renderObstacle(tg, width, height, obstacle, level);
         }
 
         // 绘制道具
         for (Item item : items) {
-            int itemRow = Math.max(0, Math.min(height - 2, item.getY()));
-            int laneX = GameConfig.calculateLaneX(width, height, item.getLane(), itemRow);
-            drawItem(tg, laneX, itemRow, item.getType());
+            entityRenderer.renderItem(tg, width, height, item);
         }
 
         // 绘制风景
         for (Scenery scenery : sceneryList) {
-            drawScenery(tg, width, height, scenery, distance);
+            entityRenderer.renderScenery(tg, width, height, scenery);
         }
 
-        int playerY = player.calculateY(height);
-        int playerRow = Math.max(0, Math.min(height - 2, playerY));
-        // 跳跃时保持在同一深度（不改变y值），通过垂直偏移显示跳跃高度
-        // 垂直偏移用于在渲染时向上移动玩家，但不改变深度计算
-        int verticalOffset = player.getVerticalOffset();
-        // 保持playerRow不变（保持深度），只在渲染时应用垂直偏移
-        int renderRow = Math.max(0, Math.min(height - 2, playerRow - verticalOffset));
-        // 使用原始playerRow计算x坐标（保持透视正确），但用renderRow渲染（显示跳跃高度）
-        int playerX = GameConfig.calculateLaneX(width, height, player.getLane(), playerRow);
+        // 绘制玩家
+        playerRenderer.renderPlayer(tg, width, height, player, distance);
 
         // 绘制追逐者
         if (showChaser && chaser != null) {
-            int chaserRow = Math.max(GameConfig.HORIZON_OFFSET + 1,
-                    Math.min(playerRow - 5, height - 4));
-            int chaserX = GameConfig.calculateLaneX(width, height, player.getLane(), chaserRow);
-            renderChaser(tg, chaserX - 3, chaserRow - 3, chaser.getAnimationFrame());
+            playerRenderer.renderChaser(tg, width, height, player, chaser);
         }
 
-        // 绘制玩家（在追逐者之后，确保位于前景）
-        // 根据玩家位置计算透视效果（使用原始playerRow计算深度，保持在同一深度）
-        // 跳跃时保持在同一深度，让玩家看起来是垂直向上跳，而不是向地平线移动
-        float depthFactor = calculateDepthFactor(height, playerRow);
-        renderHakimi3D(tg, playerX, renderRow, player, true, distance, depthFactor);
-
-        // 绘制HUD（放在屏幕右侧，不占用跑道空间）
-        int hudX = width - 20;
-        tg.putString(hudX, 1, "分数: " + score);
-        tg.putString(hudX, 2, "距离: " + distance);
-        tg.putString(hudX, 3, "速度: " + gameSpeed);
-        tg.putString(hudX, 4, "小鱼干: " + player.getDriedFishCount());
-
-        // 绘制血量
-        tg.putString(hudX, 5, "血量: ");
-        tg.setForegroundColor(TextColor.ANSI.RED);
-        StringBuilder hearts = new StringBuilder();
-        for (int i = 0; i < player.getMaxHealth(); i++) {
-            if (i < player.getHealth()) {
-                hearts.append("❤");
-            } else {
-                hearts.append("♡");
-            }
-        }
-        tg.putString(hudX + 6, 5, hearts.toString());
-        tg.setForegroundColor(TextColor.ANSI.WHITE);
-
-        if (player.hasHagenAbility()) {
-            tg.setForegroundColor(TextColor.ANSI.YELLOW);
-            tg.putString(hudX, 7, "★ 哈根之力 ★");
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        }
-
-        // 绘制车道指示器（放在底部，不占用跑道空间）
-        for (int i = 0; i < GameConfig.ROAD_WIDTH; i++) {
-            String indicator = (i == player.getLane()) ? "[★]" : "[ ]";
-            int laneX = GameConfig.calculateLaneX(width, height, i, height - 1);
-            tg.putString(laneX - 1, height - 1, indicator);
-        }
+        // 绘制HUD
+        hudRenderer.renderHud(tg, width, height, player, score, distance, gameSpeed);
 
         // 渲染通知
         if (notificationSystem != null) {
-            notificationSystem.render(tg, width, height);
-            renderScreenFlash(tg, width, height);
+            hudRenderer.renderNotifications(tg, width, height, notificationSystem);
         }
 
         screen.refresh();
@@ -307,430 +259,6 @@ public class RenderEngine {
         }
 
         screen.refresh();
-    }
-
-    /**
-     * 绘制道路
-     */
-    /**
-     * 绘制道路
-     */
-    private void drawRoad(TextGraphics tg, int width, int height, int distance, Level level) {
-        // 地平线
-        int horizonY = GameConfig.HORIZON_OFFSET;
-
-        // 绘制天空
-        tg.setBackgroundColor(level.getSkyColor());
-        for (int x = 0; x < width; x++) {
-            tg.putString(x, horizonY, " "); // Cloud or empty sky
-        }
-        tg.setBackgroundColor(TextColor.ANSI.BLACK);
-
-        for (int y = horizonY + 1; y < height; y++) {
-            int roadWidth = GameConfig.getRoadWidthAtRow(height, y);
-            int roadLeft = GameConfig.getRoadLeftAtRow(width, height, y);
-            int roadRight = Math.min(width - 1, roadLeft + roadWidth);
-            int clampedLeft = Math.max(0, roadLeft);
-            int clampedRight = Math.max(clampedLeft + 1, Math.min(width - 1, roadRight));
-
-            // 绘制草地（道路两侧）
-            tg.setBackgroundColor(level.getGrassColor());
-            if (clampedLeft > 0) {
-                tg.drawLine(0, y, clampedLeft - 1, y, ' ');
-            }
-            if (clampedRight < width - 1) {
-                tg.drawLine(clampedRight + 1, y, width - 1, y, ' ');
-            }
-            tg.setBackgroundColor(TextColor.ANSI.BLACK);
-
-            // 绘制道路边界
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-            tg.putString(clampedLeft, y, "/");
-            tg.putString(clampedRight, y, "\\");
-
-            // 车道分隔线（伪3D透视）
-            for (int i = 1; i < GameConfig.ROAD_WIDTH; i++) {
-                int prevLane = GameConfig.calculateLaneX(width, height, i - 1, y);
-                int nextLane = GameConfig.calculateLaneX(width, height, i, y);
-                int laneDivider = (prevLane + nextLane) / 2;
-                if ((y + distance) % 4 < 2 && laneDivider > clampedLeft && laneDivider < clampedRight) {
-                    tg.putString(laneDivider, y, "|");
-                }
-            }
-
-            // 地面纹理
-            tg.setForegroundColor(level.getRoadColor());
-            if ((y + distance) % 6 < 3) {
-                for (int fillX = clampedLeft + 1; fillX < clampedRight; fillX += 2) {
-                    tg.putString(fillX, y, ".");
-                }
-            }
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        }
-    }
-
-    /**
-     * 绘制障碍物
-     */
-    private void drawObstacle(TextGraphics tg, int x, int y, int type, Level level) {
-        if (type == 0) {
-            // 障碍物类型1：低障碍
-            tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT);
-            String[] sprite;
-            if (level.getObstacleStyle() == Level.ObstacleStyle.DESERT) {
-                // 仙人掌
-                sprite = new String[] {
-                        "   ̦   ",
-                        " ψΨψ ",
-                        "  |  "
-                };
-                tg.setForegroundColor(TextColor.ANSI.GREEN);
-            } else if (level.getObstacleStyle() == Level.ObstacleStyle.CYBERPUNK) {
-                // 赛博路障
-                sprite = new String[] {
-                        " ╱ ╲ ",
-                        " |=| ",
-                        " ╲_╱ "
-                };
-                tg.setForegroundColor(TextColor.ANSI.BLUE);
-            } else {
-                // 默认：石头
-                sprite = new String[] {
-                        "   ▄   ",
-                        "  ███  ",
-                        " █████ "
-                };
-            }
-
-            for (int i = 0; i < sprite.length; i++) {
-                if (y + i >= 0) {
-                    tg.putString(x - 3, y + i, sprite[i]);
-                }
-            }
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        } else {
-            // 障碍物类型2：高障碍
-            tg.setForegroundColor(TextColor.ANSI.RED);
-            String[] sprite;
-
-            if (level.getObstacleStyle() == Level.ObstacleStyle.DESERT) {
-                // 秃鹫
-                sprite = new String[] {
-                        " ^o^ ",
-                        " / \\ ",
-                        " v v "
-                };
-            } else if (level.getObstacleStyle() == Level.ObstacleStyle.CYBERPUNK) {
-                // 无人机 scan
-                sprite = new String[] {
-                        " <O> ",
-                        " /|\\ ",
-                        "  v  "
-                };
-                tg.setForegroundColor(TextColor.ANSI.CYAN);
-            } else {
-                // 默认：普通无人机
-                sprite = new String[] {
-                        "▀▀▀▀▀▀▀",
-                        " \\ | / ",
-                        "  [o]  "
-                };
-            }
-
-            for (int i = 0; i < sprite.length; i++) {
-                if (y + i >= 0) {
-                    tg.putString(x - 3, y + i, sprite[i]);
-                }
-            }
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        }
-    }
-
-    /**
-     * 绘制道具
-     */
-    private void drawItem(TextGraphics tg, int x, int y, Item.ItemType type) {
-        if (type == Item.ItemType.DRIED_FISH) {
-            tg.setForegroundColor(TextColor.ANSI.CYAN);
-            if (y >= 0)
-                tg.putString(x - 1, y, "><>");
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        } else if (type == Item.ItemType.HAGEN_ABILITY) {
-            tg.setForegroundColor(TextColor.ANSI.YELLOW);
-            String[] hagen = {
-                    " /|\\ ",
-                    "([★])",
-                    " \\|/ "
-            };
-            for (int i = 0; i < hagen.length; i++) {
-                if (y + i >= 0) {
-                    tg.putString(x - 2, y + i, hagen[i]);
-                }
-            }
-            tg.setForegroundColor(TextColor.ANSI.WHITE);
-        }
-    }
-
-    /**
-     * 绘制风景
-     */
-    private void drawScenery(TextGraphics tg, int width, int height, Scenery scenery, int distance) {
-        int row = Math.max(0, Math.min(height - 1, scenery.getY()));
-        if (row < GameConfig.HORIZON_OFFSET + 1)
-            return; // 过于远，不绘制
-
-        int roadLeft = GameConfig.getRoadLeftAtRow(width, height, row);
-        int roadWidth = GameConfig.getRoadWidthAtRow(height, row);
-
-        int x;
-        if (scenery.getSide() == -1) {
-            // 左侧，距离道路一定距离
-            x = roadLeft - 5;
-        } else {
-            // 右侧
-            x = roadLeft + roadWidth + 5;
-        }
-
-        // 确保在屏幕内
-        x = Math.max(0, Math.min(width - 1, x));
-
-        // 简单透视大小
-        boolean isFar = row < height / 2;
-
-        tg.setForegroundColor(TextColor.ANSI.GREEN);
-        if (isFar) {
-            // 远处小树
-            tg.putString(x, row, "^");
-        } else {
-            // 近处大树
-            if (row + 1 < height) {
-                tg.putString(x, row, " ^ ");
-                tg.putString(x, row + 1, "/|\\");
-            } else {
-                tg.putString(x, row, "^");
-            }
-        }
-        tg.setForegroundColor(TextColor.ANSI.WHITE);
-    }
-
-    /**
-     * 计算深度因子（用于伪3D透视缩放）
-     * 
-     * @param screenHeight 屏幕高度
-     * @param row          当前行
-     * @return 深度因子，1.0表示最近（底部），0.5表示最远（地平线）
-     */
-    private float calculateDepthFactor(int screenHeight, int row) {
-        int horizonY = GameConfig.HORIZON_OFFSET;
-        if (row <= horizonY) {
-            return 0.5f; // 最远
-        }
-        float depth = (float) (row - horizonY) / (screenHeight - horizonY);
-        return 0.5f + depth * 0.5f; // 0.5到1.0之间
-    }
-
-    /**
-     * 绘制哈基米（伪3D版本，支持透视缩放）
-     */
-    private void renderHakimi3D(TextGraphics tg, int x, int y, Player player,
-            boolean isRunning, int animationSeed, float depthFactor) {
-        String[] hakimi;
-
-        if (player.isJumping()) {
-            // 跳跃状态
-            hakimi = new String[] {
-                    "   /\\_/\\   ",
-                    "  ( > < )  ",
-                    "   \\ ^ /   ",
-                    "  /|===|\\  ",
-                    " /_|   |_\\ ",
-                    "   /___\\   "
-            };
-        } else if (player.isSliding()) {
-            // 滑铲状态
-            hakimi = new String[] {
-                    "           ",
-                    "           ",
-                    "   /\\_/\\   ",
-                    "  ( - - )  ",
-                    " /|=====|\\ ",
-                    "/_|_____|_\\"
-            };
-        } else if (isRunning) {
-            String[][] runningFrames = new String[][] {
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            "   /   \\   "
-                    },
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            "  //   \\\\  "
-                    },
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            "  /     \\  "
-                    },
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            " //     \\\\ "
-                    }
-            };
-            int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);
-            hakimi = runningFrames[frameIndex];
-        } else {
-            // 静止状态的哈基米
-            hakimi = new String[] {
-                    "   /\\_/\\   ",
-                    "  ( ^ ^ )  ",
-                    "   \\ ^ /   ",
-                    "  /|===|\\  ",
-                    " /_|   |_\\ ",
-                    "   /___\\   "
-            };
-        }
-
-        // 根据深度因子调整绘制
-        // 跳跃时保持正常大小，让玩家看起来是垂直向上跳，而不是向地平线移动
-        float scale = depthFactor;
-        // 移除跳跃时的缩放效果，让跳跃看起来更自然（向上跳而不是向前跳）
-
-        // 绘制每一行
-        // 使用黄色绘制哈基米
-        tg.setForegroundColor(TextColor.ANSI.YELLOW);
-
-        int skipLines = scale < 0.7f ? 1 : 0;
-        int lineIndex = 0;
-        for (int i = 0; i < hakimi.length; i++) {
-            if (skipLines > 0 && i % 2 == 1 && scale < 0.7f) {
-                continue;
-            }
-            int drawY = y + lineIndex;
-            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
-                String line = hakimi[i];
-                if (scale < 0.8f && line.length() > 5) {
-                    int start = (line.length() - 5) / 2;
-                    line = line.substring(start, start + 5);
-                }
-                int lineDrawX = x - line.length() / 2;
-                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - line.length(), lineDrawX)),
-                        drawY, line);
-            }
-            lineIndex++;
-        }
-        tg.setForegroundColor(TextColor.ANSI.WHITE);
-    }
-
-    /**
-     * 绘制哈基米（保留原方法用于菜单等非3D场景）
-     */
-    private void renderHakimi(TextGraphics tg, int x, int y, boolean isRunning, int animationSeed) {
-        String[] hakimi;
-
-        if (isRunning) {
-            String[][] runningFrames = new String[][] {
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            "   /   \\   "
-                    },
-                    {
-                            "   /\\_/\\   ",
-                            "  ( o o )  ",
-                            "   \\ ^ /   ",
-                            "  /|===|\\  ",
-                            " /_|   |_\\ ",
-                            "  /     \\  "
-                    }
-            };
-            int frameIndex = Math.abs((animationSeed / GameConfig.ANIMATION_FRAME_INTERVAL) % runningFrames.length);
-            hakimi = runningFrames[frameIndex];
-        } else {
-            // 静止状态的哈基米
-            hakimi = new String[] {
-                    "   /\\_/\\   ",
-                    "  ( ^ ^ )  ",
-                    "   \\ ^ /   ",
-                    "  /|===|\\  ",
-                    " /_|   |_\\ ",
-                    "   /___\\   "
-            };
-        }
-
-        for (int i = 0; i < hakimi.length; i++) {
-            int drawY = y + i;
-            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
-                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - hakimi[i].length(), x)),
-                        drawY, hakimi[i]);
-            }
-        }
-    }
-
-    private void renderChaser(TextGraphics tg, int x, int y, int frame) {
-        String[][] chaserFrames = new String[][] {
-                {
-                        "   ____   ",
-                        "  ( >< )  ",
-                        "  /||||\\  ",
-                        " /  ||  \\ ",
-                        "/   ||   \\",
-                        "   /  \\   "
-                },
-                {
-                        "   ____   ",
-                        "  ( >< )  ",
-                        "  /||||\\  ",
-                        " /  ||  \\ ",
-                        "/   ||   \\",
-                        "  /    \\  "
-                }
-        };
-        String[] sprite = chaserFrames[Math.abs(frame % chaserFrames.length)];
-        for (int i = 0; i < sprite.length; i++) {
-            int drawY = y + i;
-            if (drawY >= 0 && drawY < screen.getTerminalSize().getRows()) {
-                tg.putString(Math.max(0, Math.min(screen.getTerminalSize().getColumns() - sprite[i].length(), x)),
-                        drawY, sprite[i]);
-            }
-        }
-    }
-
-    /**
-     * 渲染屏幕闪烁效果
-     */
-    private void renderScreenFlash(TextGraphics tg, int width, int height) {
-        if (notificationSystem != null && notificationSystem.getScreenFlashTimer() > 0) {
-            tg.setBackgroundColor(notificationSystem.getScreenFlashColor());
-            // 绘制边框
-            tg.drawLine(0, 0, width - 1, 0, ' ');
-            tg.drawLine(0, height - 1, width - 1, height - 1, ' ');
-            tg.drawLine(0, 0, 0, height - 1, ' ');
-            tg.drawLine(width - 1, 0, width - 1, height - 1, ' ');
-
-            // 简单闪烁：绘制四周边框 (内圈)
-            tg.drawLine(1, 1, width - 2, 1, ' ');
-            tg.drawLine(1, height - 2, width - 2, height - 2, ' ');
-            tg.drawLine(1, 1, 1, height - 2, ' ');
-            tg.drawLine(width - 2, 1, width - 2, height - 2, ' ');
-        }
     }
 
     /**

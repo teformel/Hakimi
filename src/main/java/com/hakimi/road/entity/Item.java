@@ -7,10 +7,10 @@ import org.apache.logging.log4j.Logger;
  * 道具实体类
  * 表示游戏中的可收集物品（小鱼干、特殊能力等）
  */
-public class Item {
+public class Item extends GameEntity {
     private static final Logger logger = LogManager.getLogger(Item.class);
     private int lane; // 所在车道
-    private int y; // y坐标
+                      // y is inherited
     private ItemType type; // 道具类型
 
     public enum ItemType {
@@ -19,33 +19,17 @@ public class Item {
     }
 
     public Item(int lane, int y, ItemType type) {
+        super(y);
         this.lane = lane;
-        this.y = y;
         this.type = type;
         logger.debug("道具创建: lane={}, y={}, type={}", lane, y, type);
     }
 
-    /**
-     * 移动道具
-     */
-    public void move(int speed) {
-        this.y += speed;
-    }
-
-    /**
-     * 检查道具是否超出屏幕
-     */
-    public boolean isOutOfScreen(int screenHeight) {
-        return y > screenHeight;
-    }
+    // move and isOutOfScreen are inherited
 
     // Getters
     public int getLane() {
         return lane;
-    }
-
-    public int getY() {
-        return y;
     }
 
     public ItemType getType() {
