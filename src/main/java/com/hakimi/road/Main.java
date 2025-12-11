@@ -1,356 +1,528 @@
 package com.hakimi.road;
 
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.TextColor;
-import com.googlecode.lanterna.graphics.TextGraphics;
-import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.screen.TerminalScreen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
-import com.googlecode.lanterna.input.KeyStroke;
+import com.googlecode.lanterna.terminal.swing.SwingTerminalFrame;
+import com.googlecode.lanterna.input.KeyType;
+import com.hakimi.road.engine.GameEngine;
+import com.hakimi.road.engine.RenderEngine;
+import com.hakimi.road.system.InputSystem;
+import com.hakimi.road.util.GameConfig;
+import com.hakimi.road.util.SaveManager;
+import com.hakimi.road.util.SettingsManager;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import javax.swing.SwingUtilities;
 
+/**
+ * 主程序入口
+ * 负责初始化游戏并运行主循环
+ */
 public class Main {
-    // 游戏状态
-    private enum GameState {
-        MENU, PLAYING, GAME_OVER
-    }
-
-    // 游戏常量
-    private static final int ROAD_WIDTH = 3; // 3条车道
-    private static final int ROAD_LANES[] = {15, 30, 45}; // 车道x坐标
-    private static final int PLAYER_START_LANE = 1; // 中间车道
-    private static final int OBSTACLE_SPAWN_RATE = 10; // 障碍物生成频率
-
+    private static final Logger logger = LogManager.getLogger(Main.class);
     private Screen screen;
-    private GameState gameState = GameState.MENU;
-    private Random random = new Random();
+    private GameEngine gameEngine;
+    private RenderEngine renderEngine;
+    private InputSystem inputSystem;
 
-    // 玩家状态
-    private int playerLane = PLAYER_START_LANE; // 当前所在车道(0,1,2)
-    private int playerY; // 玩家y坐标（从底部向上）
-    private int playerHeight = 3; // 玩家高度
+    // 设置界面状态
+    private int settingsSelectedOption = 0;
 
-    // 障碍物
-    private List<Obstacle> obstacles = new ArrayList<>();
-    private int gameSpeed = 1;
+    // 存档菜单状态
+    private int saveMenuSelectedIndex = 0;
+    private String saveInputName = "";
+    private boolean isInputtingSaveName = false;
+    private GameEngine.GameState stateBeforeSaveMenu = null;
 
-    // 游戏数据
-    private int score = 0;
-    private int distance = 0;
-
-    // 障碍物类
-    private class Obstacle {
-        int lane; // 所在车道
-        int y;    // y坐标
-        int type; // 障碍物类型
-
-        Obstacle(int lane, int y, int type) {
-            this.lane = lane;
-            this.y = y;
-            this.type = type;
-        }
-    }
+    // 读档菜单状态
+    private int loadMenuSelectedIndex = 0;
 
     public static void main(String[] args) {
         Main game = new Main();
         try {
+            logger.info("Starting Hakimi Road...");
             game.run();
         } catch (IOException | InterruptedException e) {
+            logger.error("Game crashed: ", e);
             e.printStackTrace();
         }
     }
 
+    /**
+     * 运行游戏主循环
+     */
     public void run() throws IOException, InterruptedException {
         setupScreen();
-        resetGame();
+        initializeGame();
 
         // 主游戏循环
         while (true) {
             handleInput();
-            updateGame();
+            gameEngine.update();
             render();
-            Thread.sleep(100); // 10fps
+            Thread.sleep(GameConfig.GAME_LOOP_DELAY_MS);
         }
     }
 
+    /**
+     * 初始化屏幕
+     */
     private void setupScreen() throws IOException {
-        screen = new TerminalScreen(new DefaultTerminalFactory().createTerminal());
+        DefaultTerminalFactory terminalFactory = new DefaultTerminalFactory();
+        // 设置默认终端大小
+        TerminalSize size = new TerminalSize(GameConfig.TERMINAL_WIDTH, GameConfig.TERMINAL_HEIGHT);
+        terminalFactory.setInitialTerminalSize(size);
+
+        // 获取显示模式设置
+        int displayMode = SettingsManager.getInstance().getDisplayMode();
+        // 0=Auto, 1=Swing, 2=Console
+
+        // 检测操作系统
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        boolean isWindows = osName.contains("windows");
+
+        // 决定使用哪种终端
+        boolean useSwing = false;
+
+        if (displayMode == 1) {
+            useSwing = true;
+        } else if (displayMode == 2) {
+            useSwing = false;
+        } else {
+            // Auto mode
+            if (isWindows) {
+                useSwing = true;
+            } else {
+                useSwing = false;
+            }
+        }
+
+        if (useSwing) {
+            // 在 Windows 上强制使用 Swing 终端，避免使用 javaw 和 stty.exe 的问题
+            // 或者用户明确选择了 Swing 模式
+            System.setProperty("java.awt.headless", "false");
+            try {
+                // 创建 SwingTerminal
+                SwingTerminalFrame terminal = terminalFactory.createSwingTerminal();
+                // 在 EDT 线程上设置终端可见，确保窗口正确初始化
+                SwingUtilities.invokeAndWait(() -> {
+                    terminal.setVisible(true);
+                });
+                screen = new TerminalScreen(terminal);
+            } catch (Throwable e) {
+                logger.error("无法初始化 Swing 终端 (可能缺少图形界面库), 尝试回退到控制台模式", e);
+                logger.info("自动将显示模式更新为终端模式 (Console)");
+                // 回退到控制台模式
+                screen = terminalFactory.createScreen();
+                // 更新配置文件，避免下次启动再次尝试失败
+                SettingsManager.getInstance().setDisplayMode(2); // 2 = Console
+                SettingsManager.getInstance().saveSettings();
+            }
+        } else {
+            // 在 Linux/WSL2 环境中使用 ANSI 终端（不依赖 X11）
+            // 或者用户明确选择了 Console 模式
+            screen = terminalFactory.createScreen();
+        }
+
         screen.setCursorPosition(null);
         screen.startScreen();
         screen.doResizeIfNecessary();
-    }
 
-    private void resetGame() {
-        gameState = GameState.MENU;
-        playerLane = PLAYER_START_LANE;
-        obstacles.clear();
-        score = 0;
-        distance = 0;
-        gameSpeed = 1;
-    }
-
-    private void startGame() {
-        gameState = GameState.PLAYING;
-        playerLane = PLAYER_START_LANE;
-        obstacles.clear();
-        score = 0;
-        distance = 0;
-        gameSpeed = 1;
-    }
-
-    private void handleInput() throws IOException {
-        KeyStroke key = screen.pollInput();
-        if (key != null) {
-            switch (key.getKeyType()) {
-                case Escape:
-                    System.exit(0);
-                    break;
-                case Enter:
-                    if (gameState == GameState.MENU) {
-                        startGame();
-                    } else if (gameState == GameState.GAME_OVER) {
-                        startGame();
-                    }
-                    break;
-                case ArrowLeft:
-                    if (gameState == GameState.PLAYING && playerLane > 0) {
-                        playerLane--;
-                    }
-                    break;
-                case ArrowRight:
-                    if (gameState == GameState.PLAYING && playerLane < ROAD_WIDTH - 1) {
-                        playerLane++;
-                    }
-                    break;
-            }
-        }
-    }
-
-    private void updateGame() {
-        if (gameState != GameState.PLAYING) return;
-
-        // 增加距离和分数
-        distance += gameSpeed;
-        score = distance / 10;
-
-        // 随距离增加游戏速度
-        gameSpeed = 1 + score / 50;
-
-        // 生成新障碍物
-        if (random.nextInt(OBSTACLE_SPAWN_RATE) < gameSpeed) {
-            int lane = random.nextInt(ROAD_WIDTH);
-            obstacles.add(new Obstacle(lane, 0, random.nextInt(2)));
-        }
-
-        // 移动障碍物
-        List<Obstacle> obstaclesToRemove = new ArrayList<>();
-        for (Obstacle obstacle : obstacles) {
-            obstacle.y += gameSpeed;
-
-            // 移除超出屏幕的障碍物并加分
-            TerminalSize size = screen.getTerminalSize();
-            if (obstacle.y > size.getRows()) {
-                obstaclesToRemove.add(obstacle);
-                score += 5; // 成功躲避加分
-            }
-
-            // 碰撞检测
-            if (obstacle.lane == playerLane &&
-                    obstacle.y >= size.getRows() - playerHeight - 2 &&
-                    obstacle.y <= size.getRows() - 1) {
-                gameState = GameState.GAME_OVER;
-            }
-        }
-        obstacles.removeAll(obstaclesToRemove);
-    }
-
-    private void render() throws IOException {
+        // 在Linux/ANSI终端中，确保画面从顶部开始显示
+        // 清空屏幕并移动到顶部
         screen.clear();
-        TextGraphics tg = screen.newTextGraphics();
-        TerminalSize size = screen.getTerminalSize();
+        // 如果最终使用的是非Swing终端（即Console模式），确保ANSI转义序列正确输出
+        if (!(screen instanceof TerminalScreen
+                && ((TerminalScreen) screen).getTerminal() instanceof SwingTerminalFrame)) {
+            // 输出ANSI转义序列，将光标移动到左上角并清屏
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+        }
+        screen.refresh();
+    }
 
-        int width = size.getColumns();
-        int height = size.getRows();
-        playerY = height - playerHeight - 1; // 玩家在屏幕底部
+    /**
+     * 初始化游戏组件
+     */
+    private void initializeGame() {
+        gameEngine = new GameEngine(screen);
+        renderEngine = new RenderEngine(screen);
+        renderEngine.setNotificationSystem(gameEngine.getNotificationSystem());
+        inputSystem = new InputSystem(screen);
+    }
 
-        // 设置颜色
-        tg.setForegroundColor(TextColor.ANSI.WHITE);
-        tg.setBackgroundColor(TextColor.ANSI.BLACK);
+    /**
+     * 处理输入
+     */
+    private void handleInput() throws IOException {
+        // 只轮询一次输入
+        com.googlecode.lanterna.input.KeyStroke key = inputSystem.pollInput();
 
-        switch (gameState) {
+        if (key == null) {
+            return; // 没有输入
+        }
+
+        GameEngine.GameState state = gameEngine.getGameState();
+
+        // 根据游戏状态处理输入
+        switch (state) {
             case MENU:
-                renderMenu(tg, width, height);
+                // 在主菜单时，ESC退出游戏
+                if (inputSystem.isExitPressed(key)) {
+                    System.exit(0);
+                } else {
+                    handleMenuInput(key);
+                }
                 break;
             case PLAYING:
-                renderGame(tg, width, height);
+                // 检查ESC返回菜单
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isPausePressed(key)) {
+                    // 检查暂停
+                    gameEngine.togglePause();
+                } else if (isSaveKey(key)) {
+                    // 游戏中按S保存
+                    stateBeforeSaveMenu = GameEngine.GameState.PLAYING;
+                    gameEngine.enterSaveMenu();
+                    saveInputName = "";
+                    isInputtingSaveName = true;
+                } else {
+                    // 检查转向输入 (A/D)
+                    if (key.getCharacter() != null) {
+                        if (key.getCharacter() == 'a' || key.getCharacter() == 'A') {
+                            gameEngine.handleTurnInput(-1);
+                        } else if (key.getCharacter() == 'd' || key.getCharacter() == 'D') {
+                            gameEngine.handleTurnInput(1);
+                        }
+                    }
+
+                    // 处理玩家输入（移动、跳跃、滑铲）
+                    inputSystem.processInput(gameEngine.getPlayer(), key);
+                }
+                break;
+            case PAUSED:
+                // 暂停状态下可以继续游戏、保存或返回菜单
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isPausePressed(key)) {
+                    gameEngine.togglePause();
+                } else if (isSaveKey(key)) {
+                    stateBeforeSaveMenu = GameEngine.GameState.PAUSED;
+                    gameEngine.enterSaveMenu();
+                    saveInputName = "";
+                    isInputtingSaveName = true;
+                }
                 break;
             case GAME_OVER:
-                renderGameOver(tg, width, height);
+                if (inputSystem.isExitPressed(key)) {
+                    gameEngine.returnToMenu();
+                } else if (inputSystem.isEnterPressed(key)) {
+                    gameEngine.startGame();
+                }
+                break;
+            case SETTINGS:
+                handleSettingsInput(key);
+                break;
+            case SAVE_MENU:
+                handleSaveMenuInput(key);
+                break;
+            case LOAD_MENU:
+                handleLoadMenuInput(key);
+                break;
+        }
+    }
+
+    /**
+     * 渲染游戏画面
+     */
+    private void render() throws IOException {
+        GameEngine.GameState state = gameEngine.getGameState();
+        TerminalSize size = screen.getTerminalSize();
+        int width = size.getColumns();
+        int height = size.getRows();
+
+        switch (state) {
+            case MENU:
+                renderEngine.renderMenu(width, height);
+                break;
+            case PLAYING:
+            case PAUSED:
+                renderEngine.renderGame(
+                        gameEngine.getCurrentLevel(),
+                        gameEngine.getPlayer(),
+                        gameEngine.getChaser(),
+                        gameEngine.getObstacles(),
+                        gameEngine.getItems(),
+                        gameEngine.getSceneryList(),
+                        gameEngine.isChaserVisible(),
+                        gameEngine.getScoreSystem().getScore(),
+                        gameEngine.getScoreSystem().getDistance(),
+                        gameEngine.getGameSpeed(),
+                        gameEngine.getRoadManager().getCurrentCurvature(),
+                        width,
+                        height);
+                // 如果暂停，显示暂停提示
+                if (state == GameEngine.GameState.PAUSED) {
+                    String pauseText = "游戏暂停 - 按 P 继续，按 S 保存";
+                    int x = width / 2 - pauseText.length() / 2;
+                    int y = height / 2;
+                    screen.newTextGraphics().putString(x, y, pauseText);
+                }
+                break;
+            case GAME_OVER:
+                renderEngine.renderGameOver(
+                        gameEngine.getScoreSystem().getScore(),
+                        gameEngine.getScoreSystem().getDistance(),
+                        gameEngine.isCaughtByChaser(),
+                        width,
+                        height);
+                break;
+            case SETTINGS:
+                renderEngine.renderSettings(width, height, settingsSelectedOption);
+                break;
+            case SAVE_MENU:
+                renderEngine.renderSaveMenu(width, height, saveMenuSelectedIndex, saveInputName);
+                break;
+            case LOAD_MENU:
+                renderEngine.renderLoadMenu(width, height, loadMenuSelectedIndex);
                 break;
         }
 
         screen.refresh();
     }
 
-    private void renderMenu(TextGraphics tg, int width, int height) {
-        // 标题
-        String title = "哈基米的南北路";
-        tg.putString(width / 2 - title.length() / 2, height / 2 - 5, title);
-
-        // 游戏说明
-        String[] instructions = {
-                "游戏说明：",
-                "- 使用 ← → 键左右移动哈基米",
-                "- 躲避障碍物，跑得越远分数越高",
-                "- 速度会随距离增加而变快",
-                "",
-                "按 Enter 开始奔跑！"
-        };
-
-        for (int i = 0; i < instructions.length; i++) {
-            tg.putString(width / 2 - 15, height / 2 - 2 + i, instructions[i]);
-        }
-
-        // 绘制哈基米
-        renderHakimi(tg, width / 2 - 2, height / 2 - 8, false);
-    }
-
-    private void renderGame(TextGraphics tg, int width, int height) {
-        // 绘制道路和车道线
-        drawRoad(tg, width, height);
-
-        // 绘制障碍物
-        for (Obstacle obstacle : obstacles) {
-            drawObstacle(tg, ROAD_LANES[obstacle.lane], obstacle.y, obstacle.type);
-        }
-
-        // 绘制玩家
-        renderHakimi(tg, ROAD_LANES[playerLane] - 2, playerY, true);
-
-        // 绘制HUD
-        tg.putString(2, 1, "分数: " + score);
-        tg.putString(2, 2, "距离: " + distance);
-        tg.putString(2, 3, "速度: " + gameSpeed);
-
-        // 绘制车道指示器
-        for (int i = 0; i < ROAD_WIDTH; i++) {
-            String indicator = (i == playerLane) ? "[★]" : "[ ]";
-            tg.putString(ROAD_LANES[i] - 1, height - 1, indicator);
+    /**
+     * 处理菜单输入
+     */
+    private void handleMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        if (inputSystem.isEnterPressed(key)) {
+            gameEngine.startGame();
+        } else if (isSettingsKey(key)) {
+            gameEngine.enterSettings();
+            settingsSelectedOption = 0;
+        } else if (isLoadKey(key)) {
+            gameEngine.enterLoadMenu();
+            loadMenuSelectedIndex = 0;
         }
     }
 
-    private void renderGameOver(TextGraphics tg, int width, int height) {
-        String gameOver = "游戏结束!";
-        tg.putString(width / 2 - gameOver.length() / 2, height / 2 - 2, gameOver);
+    /**
+     * 处理设置界面输入
+     */
+    private void handleSettingsInput(com.googlecode.lanterna.input.KeyStroke key) {
+        SettingsManager settings = SettingsManager.getInstance();
 
-        String scoreText = "最终分数: " + score;
-        tg.putString(width / 2 - scoreText.length() / 2, height / 2, scoreText);
-
-        String distanceText = "奔跑距离: " + distance;
-        tg.putString(width / 2 - distanceText.length() / 2, height / 2 + 1, distanceText);
-
-        String restart = "按 Enter 重新开始";
-        tg.putString(width / 2 - restart.length() / 2, height / 2 + 3, restart);
-
-        // 绘制沮丧的哈基米
-        String[] sadHakimi = {
-                "  /\\_/\\  ",
-                " ( T.T ) ",
-                "  /   \\  ",
-                " 趴下了... "
-        };
-
-        for (int i = 0; i < sadHakimi.length; i++) {
-            tg.putString(width / 2 - 4, height / 2 - 6 + i, sadHakimi[i]);
-        }
-    }
-
-    private void drawRoad(TextGraphics tg, int width, int height) {
-        // 绘制道路边界
-        for (int y = 0; y < height; y++) {
-            tg.putString(5, y, "│");
-            tg.putString(width - 5, y, "│");
-        }
-
-        // 绘制车道分隔线（虚线）
-        for (int y = 0; y < height; y += 2) {
-            for (int i = 1; i < ROAD_WIDTH; i++) {
-                int laneDivider = 5 + (i * (width - 10)) / ROAD_WIDTH;
-                tg.putString(laneDivider, y, "·");
+        if (key.getKeyType() == KeyType.ArrowUp) {
+            settingsSelectedOption = Math.max(0, settingsSelectedOption - 1);
+        } else if (key.getKeyType() == KeyType.ArrowDown) {
+            int maxOptions = 7;
+            settingsSelectedOption = Math.min(maxOptions - 1, settingsSelectedOption + 1);
+        } else if (key.getKeyType() == KeyType.ArrowLeft) {
+            // 减少数值
+            switch (settingsSelectedOption) {
+                case 0: // 基础游戏速度
+                    if (settings.getBaseGameSpeed() > 1) {
+                        settings.setBaseGameSpeed(settings.getBaseGameSpeed() - 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 1: // 障碍物生成频率
+                    if (settings.getObstacleSpawnRate() > 1) {
+                        settings.setObstacleSpawnRate(settings.getObstacleSpawnRate() - 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 2: // 速度增加间隔
+                    if (settings.getSpeedIncreaseInterval() > 10) {
+                        settings.setSpeedIncreaseInterval(settings.getSpeedIncreaseInterval() - 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 3: // 游戏循环延迟
+                    if (settings.getGameLoopDelayMs() > 50) {
+                        settings.setGameLoopDelayMs(settings.getGameLoopDelayMs() - 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 4: // 显示模式
+                    int currentMode = settings.getDisplayMode();
+                    int newMode = (currentMode + 2) % 3; // 0->2->1->0 (reverse)
+                    settings.setDisplayMode(newMode);
+                    settings.saveSettings();
+                    break;
             }
-        }
-
-        // 绘制道路背景（移动效果）
-        for (int y = 0; y < height; y++) {
-            if ((y + distance) % 4 == 0) {
-                tg.putString(6, y, "─");
-                tg.putString(width - 6, y, "─");
+        } else if (key.getKeyType() == KeyType.ArrowRight) {
+            // 增加数值
+            switch (settingsSelectedOption) {
+                case 0: // 基础游戏速度
+                    if (settings.getBaseGameSpeed() < 10) {
+                        settings.setBaseGameSpeed(settings.getBaseGameSpeed() + 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 1: // 障碍物生成频率
+                    if (settings.getObstacleSpawnRate() < 50) {
+                        settings.setObstacleSpawnRate(settings.getObstacleSpawnRate() + 1);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 2: // 速度增加间隔
+                    if (settings.getSpeedIncreaseInterval() < 200) {
+                        settings.setSpeedIncreaseInterval(settings.getSpeedIncreaseInterval() + 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 3: // 游戏循环延迟
+                    if (settings.getGameLoopDelayMs() < 500) {
+                        settings.setGameLoopDelayMs(settings.getGameLoopDelayMs() + 10);
+                        settings.saveSettings();
+                    }
+                    break;
+                case 4: // 显示模式
+                    int currentMode = settings.getDisplayMode();
+                    int newMode = (currentMode + 1) % 3; // 0->1->2->0
+                    settings.setDisplayMode(newMode);
+                    settings.saveSettings();
+                    break;
             }
+        } else if (inputSystem.isEnterPressed(key)) {
+            if (settingsSelectedOption == 5) {
+                // 重置为默认值
+                settings.resetToDefaults();
+            } else if (settingsSelectedOption == 6) {
+                // 返回菜单
+                gameEngine.returnToMenu();
+            }
+        } else if (inputSystem.isExitPressed(key)) {
+            gameEngine.returnToMenu();
         }
     }
 
-    private void drawObstacle(TextGraphics tg, int x, int y, int type) {
-        if (type == 0) {
-            // 障碍物类型1：石头
-            String[] rock = {
-                    " ███ ",
-                    "█████",
-                    " ███ "
-            };
-            for (int i = 0; i < rock.length; i++) {
-                if (y + i >= 0) {
-                    tg.putString(x - 2, y + i, rock[i]);
+    /**
+     * 处理存档菜单输入
+     */
+    private void handleSaveMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        if (isInputtingSaveName) {
+            if (key.getKeyType() == KeyType.Enter) {
+                // 保存游戏
+                if (!saveInputName.trim().isEmpty()) {
+                    boolean success = gameEngine.saveGame(saveInputName.trim());
+                    if (success) {
+                        // 返回到之前的状态
+                        if (stateBeforeSaveMenu != null) {
+                            gameEngine.setGameState(stateBeforeSaveMenu);
+                            stateBeforeSaveMenu = null;
+                        } else {
+                            gameEngine.returnToMenu();
+                        }
+                        saveInputName = "";
+                        isInputtingSaveName = false;
+                    }
                 }
+            } else if (key.getKeyType() == KeyType.Backspace) {
+                // 删除字符
+                if (saveInputName.length() > 0) {
+                    saveInputName = saveInputName.substring(0, saveInputName.length() - 1);
+                }
+            } else if (key.getKeyType() == KeyType.Character && key.getCharacter() != null) {
+                char c = key.getCharacter();
+                if (Character.isLetterOrDigit(c) || c == '_' || c == '-') {
+                    if (saveInputName.length() < 20) {
+                        saveInputName += c;
+                    }
+                }
+            } else if (inputSystem.isExitPressed(key)) {
+                // 返回到之前的状态
+                if (stateBeforeSaveMenu != null) {
+                    gameEngine.setGameState(stateBeforeSaveMenu);
+                    stateBeforeSaveMenu = null;
+                } else {
+                    gameEngine.returnToMenu();
+                }
+                saveInputName = "";
+                isInputtingSaveName = false;
             }
         } else {
-            // 障碍物类型2：栅栏
-            String[] fence = {
-                    " ▄▄▄ ",
-                    " ███ ",
-                    " ▀▀▀ "
-            };
-            for (int i = 0; i < fence.length; i++) {
-                if (y + i >= 0) {
-                    tg.putString(x - 2, y + i, fence[i]);
-                }
+            List<String> saves = SaveManager.getInstance().getSaveList();
+            if (key.getKeyType() == KeyType.ArrowUp) {
+                saveMenuSelectedIndex = Math.max(0, saveMenuSelectedIndex - 1);
+            } else if (key.getKeyType() == KeyType.ArrowDown) {
+                saveMenuSelectedIndex = Math.min(saves.size() - 1, saveMenuSelectedIndex + 1);
+            } else if (inputSystem.isEnterPressed(key)) {
+                isInputtingSaveName = true;
+                saveInputName = "";
+            } else if (inputSystem.isExitPressed(key)) {
+                gameEngine.returnToMenu();
             }
         }
     }
 
-    private void renderHakimi(TextGraphics tg, int x, int y, boolean isRunning) {
-        String[] hakimi;
+    /**
+     * 处理读档菜单输入
+     */
+    private void handleLoadMenuInput(com.googlecode.lanterna.input.KeyStroke key) {
+        List<String> saves = SaveManager.getInstance().getSaveList();
 
-        if (isRunning) {
-            // 奔跑状态的哈基米（两帧动画交替）
-            if ((distance / 5) % 2 == 0) {
-                hakimi = new String[]{
-                        "  /\\_/\\  ",
-                        " ( o.o ) ",
-                        " /     \\ "
-                };
-            } else {
-                hakimi = new String[]{
-                        "  /\\_/\\  ",
-                        " ( -.- ) ",
-                        " /     \\ "
-                };
+        if (saves.isEmpty()) {
+            if (inputSystem.isExitPressed(key)) {
+                gameEngine.returnToMenu();
             }
-        } else {
-            // 静止状态的哈基米
-            hakimi = new String[]{
-                    "  /\\_/\\  ",
-                    " ( ^.^ ) ",
-                    " /     \\ "
-            };
+            return;
         }
 
-        for (int i = 0; i < hakimi.length; i++) {
-            tg.putString(x, y + i, hakimi[i]);
+        if (key.getKeyType() == KeyType.ArrowUp) {
+            loadMenuSelectedIndex = Math.max(0, loadMenuSelectedIndex - 1);
+        } else if (key.getKeyType() == KeyType.ArrowDown) {
+            loadMenuSelectedIndex = Math.min(saves.size() - 1, loadMenuSelectedIndex + 1);
+        } else if (inputSystem.isEnterPressed(key)) {
+            // 加载游戏
+            if (loadMenuSelectedIndex >= 0 && loadMenuSelectedIndex < saves.size()) {
+                String saveName = saves.get(loadMenuSelectedIndex);
+                gameEngine.loadGame(saveName);
+            }
+        } else if (key.getKeyType() == KeyType.Character &&
+                (key.getCharacter() == 'd' || key.getCharacter() == 'D')) {
+            // 删除存档
+            if (loadMenuSelectedIndex >= 0 && loadMenuSelectedIndex < saves.size()) {
+                String saveName = saves.get(loadMenuSelectedIndex);
+                SaveManager.getInstance().deleteSave(saveName);
+            }
+        } else if (inputSystem.isExitPressed(key)) {
+            gameEngine.returnToMenu();
         }
+    }
+
+    /**
+     * 检查是否是设置键（S）
+     */
+    private boolean isSettingsKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return key != null &&
+                key.getKeyType() == KeyType.Character &&
+                key.getCharacter() != null &&
+                (key.getCharacter() == 's' || key.getCharacter() == 'S');
+    }
+
+    /**
+     * 检查是否是保存键（S）
+     */
+    private boolean isSaveKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return isSettingsKey(key);
+    }
+
+    /**
+     * 检查是否是加载键（L）
+     */
+    private boolean isLoadKey(com.googlecode.lanterna.input.KeyStroke key) {
+        return key != null &&
+                key.getKeyType() == KeyType.Character &&
+                key.getCharacter() != null &&
+                (key.getCharacter() == 'l' || key.getCharacter() == 'L');
     }
 }
