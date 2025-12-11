@@ -76,10 +76,16 @@ public class InputSystem {
                     player.slide();
                     break;
                 case Character:
-                    // 空格键跳跃
                     if (key.getCharacter() != null && key.getCharacter() == ' ') {
                         logger.trace("处理输入: 跳跃(空格)");
                         player.jump();
+                    } else if (key.getCharacter() != null && (key.getCharacter() == 'a' || key.getCharacter() == 'A')) {
+                        // A controls
+                        // We will handle this in GameEngine by checking last key or we can add a method
+                        // here
+                        // Actually, InputSystem processes input and updates Player.
+                        // But turning is a GameEngine level concern (RoadManager).
+                        // So we should expose if A or D was pressed.
                     }
                     break;
                 default:

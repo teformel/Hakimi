@@ -63,6 +63,7 @@ public class RenderEngine {
                 "- 使用 ← → 键左右移动哈基米",
                 "- 使用 ↑ 或 空格 跳跃（躲避低障碍）",
                 "- 使用 ↓ 滑铲（躲避高障碍）",
+                "- 使用 A / D 键在急转弯处转向",
                 "- 躲避障碍物，跑得越远分数越高",
                 "- 速度会随距离增加而变快",
                 "",
@@ -129,7 +130,7 @@ public class RenderEngine {
      */
     public void renderGame(Level level, Player player, Chaser chaser, List<Obstacle> obstacles, List<Item> items,
             List<Scenery> sceneryList,
-            boolean showChaser, int score, int distance, int gameSpeed,
+            boolean showChaser, int score, int distance, int gameSpeed, double curvature,
             int width, int height) throws IOException {
         screen.clear();
         TextGraphics tg = screen.newTextGraphics();
@@ -137,21 +138,21 @@ public class RenderEngine {
         tg.setForegroundColor(TextColor.ANSI.WHITE);
 
         // 绘制道路
-        roadRenderer.render(tg, width, height, distance, level);
+        roadRenderer.render(tg, width, height, distance, level, curvature);
 
         // 绘制障碍物
         for (Obstacle obstacle : obstacles) {
-            entityRenderer.renderObstacle(tg, width, height, obstacle, level);
+            entityRenderer.renderObstacle(tg, width, height, obstacle, level, curvature);
         }
 
         // 绘制道具
         for (Item item : items) {
-            entityRenderer.renderItem(tg, width, height, item);
+            entityRenderer.renderItem(tg, width, height, item, curvature);
         }
 
         // 绘制风景
         for (Scenery scenery : sceneryList) {
-            entityRenderer.renderScenery(tg, width, height, scenery);
+            entityRenderer.renderScenery(tg, width, height, scenery, curvature);
         }
 
         // 绘制玩家

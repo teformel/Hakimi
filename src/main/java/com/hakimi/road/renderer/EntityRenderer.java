@@ -10,31 +10,49 @@ import com.hakimi.road.util.GameConfig;
 
 public class EntityRenderer {
 
-    public void renderObstacle(TextGraphics tg, int width, int height, Obstacle obstacle, Level level) {
+    public void renderObstacle(TextGraphics tg, int width, int height, Obstacle obstacle, Level level,
+            double curvature) {
         int obstacleRow = Math.max(0, Math.min(height - 2, obstacle.getY()));
         int laneX = GameConfig.calculateLaneX(width, height, obstacle.getLane(), obstacleRow);
+
+        // Apply curvature offset
+        int curveOffset = GameConfig.calculateCurvatureOffset(height, obstacleRow, curvature);
+        laneX += curveOffset;
+
         drawObstacleSprite(tg, laneX, obstacleRow, obstacle.getType(), level);
     }
 
-    public void renderItem(TextGraphics tg, int width, int height, Item item) {
+    public void renderItem(TextGraphics tg, int width, int height, Item item, double curvature) {
         int itemRow = Math.max(0, Math.min(height - 2, item.getY()));
         int laneX = GameConfig.calculateLaneX(width, height, item.getLane(), itemRow);
+
+        // Apply curvature offset
+        int curveOffset = GameConfig.calculateCurvatureOffset(height, itemRow, curvature);
+        laneX += curveOffset;
+
         drawItemSprite(tg, laneX, itemRow, item.getType());
     }
 
-    public void renderScenery(TextGraphics tg, int width, int height, Scenery scenery) {
+    public void renderScenery(TextGraphics tg, int width, int height, Scenery scenery, double curvature) {
         int row = Math.max(0, Math.min(height - 1, scenery.getY()));
         if (row < GameConfig.HORIZON_OFFSET + 1)
             return;
 
+        // Apply curvature offset to base road position
         int roadLeft = GameConfig.getRoadLeftAtRow(width, height, row);
+        int curveOffset = GameConfig.calculateCurvatureOffset(height, row, curvature);
+
+        // Adjust roadLeft by offset
+        // Note: We need to act as if the whole road shifted
+        int adjustedRoadLeft = roadLeft + curveOffset;
+
         int roadWidth = GameConfig.getRoadWidthAtRow(height, row);
 
         int x;
         if (scenery.getSide() == -1) {
-            x = roadLeft - 5;
+            x = adjustedRoadLeft - 5;
         } else {
-            x = roadLeft + roadWidth + 5;
+            x = adjustedRoadLeft + roadWidth + 5;
         }
 
         x = Math.max(0, Math.min(width - 1, x));

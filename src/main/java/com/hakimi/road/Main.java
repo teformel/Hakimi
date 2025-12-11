@@ -194,6 +194,15 @@ public class Main {
                     saveInputName = "";
                     isInputtingSaveName = true;
                 } else {
+                    // 检查转向输入 (A/D)
+                    if (key.getCharacter() != null) {
+                        if (key.getCharacter() == 'a' || key.getCharacter() == 'A') {
+                            gameEngine.handleTurnInput(-1);
+                        } else if (key.getCharacter() == 'd' || key.getCharacter() == 'D') {
+                            gameEngine.handleTurnInput(1);
+                        }
+                    }
+
                     // 处理玩家输入（移动、跳跃、滑铲）
                     inputSystem.processInput(gameEngine.getPlayer(), key);
                 }
@@ -256,6 +265,7 @@ public class Main {
                         gameEngine.getScoreSystem().getScore(),
                         gameEngine.getScoreSystem().getDistance(),
                         gameEngine.getGameSpeed(),
+                        gameEngine.getRoadManager().getCurrentCurvature(),
                         width,
                         height);
                 // 如果暂停，显示暂停提示

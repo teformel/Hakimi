@@ -58,6 +58,7 @@ public class GameEngine {
 
     private NotificationSystem notificationSystem;
     private LevelManager levelManager;
+    private com.hakimi.road.level.RoadManager roadManager;
 
     public GameEngine(Screen screen) {
         this.screen = screen;
@@ -81,8 +82,13 @@ public class GameEngine {
         // 初始化通知系统和成就管理器
         this.notificationSystem = new NotificationSystem();
         this.levelManager = new LevelManager();
+        this.roadManager = new com.hakimi.road.level.RoadManager();
         AchievementManager.getInstance().setNotificationSystem(notificationSystem);
         logger.info("GameEngine初始化完成");
+    }
+
+    public com.hakimi.road.level.RoadManager getRoadManager() {
+        return roadManager;
     }
 
     /**
@@ -150,6 +156,14 @@ public class GameEngine {
         if (random.nextInt(100) < 15) {
             int side = random.nextBoolean() ? -1 : 1;
             sceneryList.add(new Scenery(side, 0, Scenery.SceneryType.TREE));
+        }
+
+        // 更新道路管理器
+        roadManager.update(gameSpeed, scoreSystem.getDistance());
+
+        // 检查自动失败的转向
+        if (roadManager.checkMissedTurn()) {
+            handlePlayerTurnFail();
         }
 
         // 移动障碍物
@@ -240,6 +254,44 @@ public class GameEngine {
                     handlePlayerHit();
                 }
             }
+        }
+    }
+
+    /**
+     * 处理玩家转向输入
+     * 
+     * @param direction -1: Left, 1: Right
+     */
+    public void handleTurnInput(int direction) {
+        if (gameState != GameState.PLAYING)
+            return;
+
+        com.hakimi.road.level.RoadManager.TurnResult result = roadManager.checkTurn(direction);
+        if (result == com.hakimi.road.level.RoadManager.TurnResult.SUCCESS) {
+            // 转向成功
+            notificationSystem.addNotification("飘移成功!", "完美过弯!", ">>>", 1000,
+                    com.googlecode.lanterna.TextColor.ANSI.GREEN);
+            // 奖励分数
+            scoreSystem.addScore(500);
+            scoreSystem.obstacleAvoided(); // 算作躲避一次
+        } else if (result == com.hakimi.road.level.RoadManager.TurnResult.WRONG_DIRECTION) {
+            // 方向错误，轻轻惩罚或者直接撞墙
+            handlePlayerTurnFail();
+        }
+        // TOO_EARLY or NONE ignored
+    }
+
+    private void handlePlayerTurnFail() {
+        if (player.hasHagenAbility()) {
+            // 消耗哈根
+            player.consumeHagen();
+            notificationSystem.addNotification("哈!!!!!!", "强行过弯!", "⚡", 2000,
+                    com.googlecode.lanterna.TextColor.ANSI.RED);
+            notificationSystem.triggerScreenFlash(com.googlecode.lanterna.TextColor.ANSI.YELLOW, 3);
+        } else {
+            handlePlayerHit(); // 视为撞击
+            notificationSystem.addNotification("撞墙了!", "未能及时转向", "XXX", 2000,
+                    com.googlecode.lanterna.TextColor.ANSI.RED);
         }
     }
 

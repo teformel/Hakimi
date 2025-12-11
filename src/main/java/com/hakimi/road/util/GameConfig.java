@@ -74,6 +74,28 @@ public class GameConfig {
     // 动画配置
     public static final int ANIMATION_FRAME_INTERVAL = 5; // 动画帧间隔
 
+    // 道路弯曲与转向配置
+    public static final int ROAD_SEGMENT_LENGTH = 1000; // 每个路段的长度 (距离单位)
+    public static final double MAX_CURVATURE = 2.0; // 最大弯曲度
+    public static final int TURN_WINDOW_TOLERANCE = 50; // 转向判定窗口 (距离单位)
+    public static final int TURN_90_ANGLE = 90; // 90度转向
+
+    /**
+     * 计算道路在特定高度的弯曲偏移量
+     * 
+     * @param screenHeight 屏幕高度
+     * @param y            当前Y坐标
+     * @param curvature    当前弯曲度
+     * @return X轴偏移量
+     */
+    public static int calculateCurvatureOffset(int screenHeight, int y, double curvature) {
+        int horizonY = HORIZON_OFFSET;
+        // 计算弯曲偏移量: y越小(越远), 偏移越大
+        // 使用二次函数模拟透视效果
+        double relativeY = (double) (screenHeight - y) / (screenHeight - horizonY);
+        return (int) (curvature * relativeY * relativeY * 50);
+    }
+
     private GameConfig() {
         // 工具类，不允许实例化
     }
